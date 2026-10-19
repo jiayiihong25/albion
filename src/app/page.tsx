@@ -13,16 +13,16 @@ export default function Home() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Link
           href="/dishes"
-          className="rounded-lg border p-6 transition hover:bg-neutral-50"
+          className="rounded-lg border p-6 transition-colors duration-100 ease-linear hover:bg-neutral-50"
         >
-          <h2 className="text-xl font-semibold">🍽️ Dish Tally</h2>
+          <h2 className="text-xl font-semibold">🍽️ Dish Duty</h2>
           <p className="mt-1 text-sm text-neutral-500">
-            Log who washed the dishes and see the running count.
+            See the weekly rotation and check in with a photo of the clean sink.
           </p>
         </Link>
         <Link
           href="/fridge"
-          className="rounded-lg border p-6 transition hover:bg-neutral-50"
+          className="rounded-lg border p-6 transition-colors duration-100 ease-linear hover:bg-neutral-50"
         >
           <h2 className="text-xl font-semibold">🧊 Fridge Management</h2>
           <p className="mt-1 text-sm text-neutral-500">
