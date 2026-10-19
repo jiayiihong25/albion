@@ -18,13 +18,14 @@
 }
 .nav { display: flex; align-items: center; justify-content: space-between; padding: 27px 0; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 680; letter-spacing: -1px; text-decoration: none; }
-.brandIcon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e4ebdf; }
-.brandIcon svg { width: 24px; height: 24px; }
 .brandDivider { color: #bcc1b5; font-weight: 400; margin: 0 7px; }
 .brandSection { font-size: 13px; letter-spacing: 0; font-weight: 450; color: var(--muted); }
 .navLink { display: flex; gap: 10px; align-items: center; font-size: 13px; text-decoration: none; }
 .navLink:hover { text-decoration: underline; }
-.navLink svg { width: 15px; }
+.navActions { display: flex; align-items: center; gap: 24px; }
+.signedInWasher { display: flex; align-items: center; gap: 11px; padding: 12px; border: 1px solid #e0e5d5; border-radius: 8px; background: #f6f8ee; margin-bottom: 15px; }
+.signedInWasher strong { display: block; font-size: 11px; font-weight: 550; }
+.signedInWasher small { display: block; font-size: 9px; color: #87917b; margin-top: 4px; line-height: 1.6; }
 .header { padding: 48px 0 32px; display: flex; justify-content: space-between; align-items: center; gap: 24px; }
 .eyebrow, .smallLabel { font-size: 10px; line-height: 1.5; letter-spacing: 1.7px; font-weight: 650; color: var(--muted); }
 .header h1 { font-size: clamp(44px, 5vw, 66px); line-height: 1.1; letter-spacing: -3px; font-weight: 570; margin: 12px 0 13px; }
@@ -34,14 +35,12 @@
 .houseTag > span { height: 6px; width: 6px; border-radius: 50%; background: #709366; }
 .todayBanner { background: #e9eedf; border: 1px solid #dce5d0; padding: 25px 28px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-radius: 16px; }
 .todayIntro { display: flex; align-items: center; gap: 19px; }
-.todayIcon { display: grid; place-items: center; width: 57px; height: 57px; flex-shrink: 0; border: 1px solid #cad8bd; border-radius: 50%; }
-.todayIcon svg { width: 34px; height: 34px; stroke-width: 1.1; }
+.todayArt { width: 84px; height: 84px; }
 .smallLabel { color: #65765b; font-size: 9px; }
 .todayIntro h2 { font-size: 24px; font-weight: 570; letter-spacing: -.7px; margin: 3px 0 5px; line-height: 1.3; }
 .todayIntro p:last-child { color: #64715d; font-size: 12px; line-height: 1.6; }
 .bannerButton { display: inline-flex; align-items: center; justify-content: center; gap: 19px; background: #fffef8; padding: 12px 17px; border-radius: 8px; border: 1px solid #d9e0cd; font-size: 12px; font-weight: 550; white-space: nowrap; }
 .bannerButton:hover { background: #f4f6ec; }
-.bannerButton svg { width: 17px; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 276px; gap: 28px; margin-top: 40px; align-items: start; }
 .mainColumn { min-width: 0; }
 .sidebar { position: sticky; top: 24px; }
@@ -49,7 +48,7 @@
 .calendarToolbar { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 21px; }
 .calendarToolbar h2 { font-size: 23px; letter-spacing: -.7px; font-weight: 550; margin-top: 5px; line-height: 1.4; }
 .weekControls { display: flex; gap: 6px; align-items: center; }
-.weekControls button { height: 36px; min-width: 36px; border: 1px solid #dedfd5; border-radius: 7px; background: #fdfdf8; display: grid; place-items: center; }
+.weekControls button { height: 36px; min-width: 36px; padding: 0 10px; font-size: 10px; border: 1px solid #dedfd5; border-radius: 7px; background: #fdfdf8; display: grid; place-items: center; }
 .weekControls button:hover:enabled { background: #e9eedf; }
 .weekControls button:disabled { opacity: .5; }
 .weekControls .thisWeek { padding: 0 14px; font-size: 11px; font-weight: 550; }
@@ -68,9 +67,7 @@
 .avatarImage { display: block; width: 100%; height: 100%; object-fit: cover; }
 .status { display: flex; align-items: center; gap: 6px; padding-top: 11px; border-top: 1px solid #0000000c; font-size: 10px; font-weight: 550; }
 .statusDot { display: grid; place-items: center; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.statusDot svg { width: 12px; height: 12px; }
 .done { background: #e9f1e5; border-color: #d4e1ce; color: #3e6c39; }
-.done .statusDot { background: none; width: 12px; height: 12px; }
 .due, .missed { background: #faf0eb; border-color: #ecd7ce; color: #985145; }
 .upcoming, .unavailable { background: #efefea; color: #777d71; }
 .calendarFooter { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 0 6px; color: var(--muted); font-size: 10px; line-height: 1.6; }
@@ -92,14 +89,12 @@
 .checkInDetails { padding: 35px 38px; display: flex; flex-direction: column; align-items: flex-start; }
 .checkInDetails h2 { font-size: 30px; letter-spacing: -1px; line-height: 1.25; font-weight: 520; margin-top: 11px; }
 .selectedDate { display: flex; align-items: center; gap: 7px; font-size: 11px; margin-top: 15px; color: #5e6b58; }
-.selectedDate svg { width: 14px; height: 14px; }
 .checkInCopy { font-size: 13px; color: var(--muted); max-width: 335px; line-height: 1.8; margin-top: 16px; }
 .assignment { display: flex; align-items: center; gap: 11px; margin-top: 22px; }
 .assignment .avatar { width: 38px; height: 38px; font-size: 11px; }
 .assignment small { display: block; font-size: 8px; letter-spacing: 1.2px; color: var(--muted); margin-bottom: 4px; }
 .assignment strong { display: block; font-size: 12px; font-weight: 550; }
 .privacyNote { display: flex; align-items: flex-start; gap: 8px; max-width: 330px; font-size: 10px; line-height: 1.8; color: #808578; margin-top: auto; padding-top: 35px; }
-.privacyNote svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; }
 .checkInAction { border-left: 1px solid var(--line); padding: 28px 32px; }
 .form { display: flex; flex-direction: column; }
 .formHeading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 20px; }
@@ -113,8 +108,6 @@
 .photoDrop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-height: 170px; border: 1px dashed #c6d0bb; background: #f7f8ef; border-radius: 9px; cursor: pointer; text-align: center; padding: 18px 12px; transition: background-color 90ms linear; }
 .photoDrop:hover { background: #eef2e4; }
 .photoDisabled { opacity: .5; cursor: default; }
-.uploadIcon { display: grid; place-items: center; width: 38px; height: 38px; background: #e8eedd; border-radius: 50%; margin-bottom: 4px; }
-.uploadIcon svg { width: 19px; height: 19px; color: #6a805d; }
 .photoDrop strong { font-size: 12px; font-weight: 550; }
 .photoDrop > span:not(.uploadIcon) { font-size: 10px; color: #7a8273; }
 .photoDrop small { font-size: 8px; letter-spacing: .1px; color: #858b7f; }
@@ -122,26 +115,22 @@
 .photoPreview img { width: 100%; height: 170px; object-fit: contain; }
 .photoPreview > div { padding: 9px 12px; display: flex; gap: 12px; align-items: center; font-size: 10px; background: #f4f7ec; }
 .photoPreview span { display: flex; align-items: center; gap: 5px; color: #547246; margin-right: auto; }
-.photoPreview svg { width: 14px; height: 14px; }
 .photoPreview button { text-decoration: underline; }
 .formError { font-size: 11px; line-height: 1.7; color: #a24e3f; }
 .formError:not(:empty) { margin-top: 10px; }
 .submitButton { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; width: 100%; border-radius: 7px; padding: 12px 18px; background: #2f4d36; color: #f8f9f1; font-size: 12px; font-weight: 550; }
 .submitButton:hover:enabled { background: #3f6247; }
 .submitButton:disabled { background: #e5e8dc; color: #8b9380; }
-.submitButton svg { width: 16px; height: 16px; }
 .formFootnote { text-align: center; font-size: 9px; color: #878d80; margin-top: 10px; line-height: 1.6; }
 .completedPanel, .futurePanel { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 330px; padding: 20px; }
-.bigCheck { width: 60px; height: 60px; display: grid; place-items: center; border-radius: 50%; background: #e5eedb; color: #567449; margin-bottom: 23px; }
-.bigCheck svg { width: 29px; height: 29px; }
+.bigCheck { width: 128px; height: 128px; display: grid; place-items: center; margin-bottom: 16px; }
 .completedPanel h3, .futurePanel h3 { font-size: 24px; letter-spacing: -.7px; font-weight: 500; margin: 9px 0 14px; }
 .completedPanel p, .futurePanel p { font-size: 12px; color: var(--muted); line-height: 1.9; }
 .completedPanel .completionTime { font-size: 10px; margin-top: 5px; }
 .noPhoto { font-size: 10px; color: #7c8572; margin-top: 26px; }
-.futurePanel > svg { width: 34px; height: 34px; color: #a2ab96; margin-bottom: 15px; }
+.futurePanel > img { margin-bottom: 15px; }
 .secondaryButton { display: inline-flex; justify-content: center; align-items: center; gap: 12px; border: 1px solid #dce0d3; border-radius: 7px; font-size: 11px; padding: 10px 15px; margin-top: 24px; }
 .secondaryButton:hover { background: #f1f4e8; }
-.secondaryButton svg { width: 15px; height: 15px; }
 .rotation { margin-top: 34px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 25px 0; display: flex; gap: 30px; align-items: center; }
 .rotation h2 { font-size: 15px; font-weight: 500; letter-spacing: -.3px; margin-top: 6px; white-space: nowrap; }
 .rotation .eyebrow { font-size: 8px; letter-spacing: 1.2px; }
@@ -156,8 +145,7 @@
 .leaderboard { border: 1px solid var(--line); border-radius: 14px; background: #fffef9; overflow: hidden; }
 .leaderboardHeading { padding: 23px 20px 20px; border-bottom: 1px solid var(--line); }
 .leaderboardHeading .eyebrow { font-size: 7px; letter-spacing: 1.1px; }
-.leaderboardHeading h2 { font-size: 21px; font-weight: 550; letter-spacing: -.7px; line-height: 1.35; margin-top: 8px; }
-.leaderboardHeading h2 > span { color: #a2ab6f; font-size: 22px; margin-left: 7px; }
+.leaderboardHeading h2 { display: flex; align-items: center; gap: 8px; font-size: 21px; font-weight: 550; letter-spacing: -.7px; line-height: 1.35; margin-top: 8px; }
 .leaderboardHeading > p:last-child { font-size: 10px; color: var(--muted); margin-top: 7px; }
 .leaderboardRows { list-style: none; padding: 6px 12px; }
 .leaderboardRows li { display: flex; align-items: center; gap: 9px; padding: 15px 4px; border-bottom: 1px solid #e9eadf; }
@@ -222,7 +210,7 @@
   .houseTag { display: none; }
   .todayBanner { padding: 20px; flex-wrap: wrap; gap: 17px; }
   .todayIntro { gap: 14px; }
-  .todayIcon { height: 46px; width: 46px; }
+  .todayArt { height: 62px; width: 62px; }
   .todayIntro h2 { font-size: 22px; }
   .todayIntro p:last-child { font-size: 11px; }
   .bannerButton { width: 100%; justify-content: space-between; padding: 11px 15px; }
@@ -273,6 +261,8 @@
   .rotation > p { margin-left: auto; font-size: 9px; }
 }
 @media (max-width: 400px) {
+  .navActions { gap: 13px; }
+  .brandSection, .brandDivider { display: none; }
   .shell { padding: 0 16px; }
   .calendarToolbar { flex-wrap: wrap; }
   .calendarToolbar > div:first-child { flex: 1 0 100%; }

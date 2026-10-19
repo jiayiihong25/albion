@@ -1,0 +1,40 @@
+.page { min-height: 100vh; background: #f8f8f2; color: #25382e; font-family: var(--font-geist-sans), sans-serif; color-scheme: light; }
+.shell { max-width: 1240px; margin: 0 auto; padding: 32px 48px 24px; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 650; letter-spacing: -1px; }
+.brand small { font-size: 12px; font-weight: 400; letter-spacing: 0; margin-left: 12px; color: #838b7b; }
+.content { min-height: calc(100vh - 180px); display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 90px; padding: 65px 0; }
+.eyebrow { color: #7d8873; font-size: 9px; font-weight: 650; letter-spacing: 1.7px; line-height: 1.6; }
+.story h1 { font-size: clamp(40px, 5vw, 62px); font-weight: 550; letter-spacing: -2.5px; line-height: 1.13; margin-top: 21px; }
+.story h1 > span { color: #84a26d; }
+.intro { max-width: 370px; color: #7b8273; font-size: 14px; line-height: 1.9; margin-top: 23px; }
+.housemates { display: flex; gap: 14px; margin-top: 38px; }
+.housemates > div { display: flex; flex-direction: column; gap: 9px; align-items: center; }
+.housemates img { width: 46px; height: 46px; border-radius: 50%; }
+.housemates span { font-size: 9px; color: #6e7865; }
+.together { font-size: 10px; color: #949c89; margin-top: 19px; }
+.card { background: #fffef9; border: 1px solid #e1e5d8; border-radius: 19px; padding: 36px; box-shadow: 0 12px 50px #35492d05; }
+.doorArt { margin-bottom: 18px; }
+.passwordLabel { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 19px; margin-bottom: 8px; }
+.passwordLabel label { margin: 0; }
+.passwordLabel button { color: #7b8b6c; font-size: 10px; cursor: pointer; }
+.card h2 { font-size: 32px; font-weight: 520; letter-spacing: -1px; margin-top: 10px; }
+.cardIntro { font-size: 12px; color: #7e8774; line-height: 1.9; margin-top: 12px; }
+.form { display: flex; flex-direction: column; margin-top: 25px; }
+.form label { font-size: 11px; font-weight: 550; margin-bottom: 8px; }
+.form input:not([type="hidden"]) { border: 1px solid #dce1d1; border-radius: 8px; padding: 13px 14px; width: 100%; font-size: 14px; background: #fffef9; outline-offset: 4px; }
+.form input:focus-visible, .form button:focus-visible { outline: 2px solid #657d4e; outline-offset: 4px; }
+.form input::placeholder { color: #a0a794; }
+.submit { background: #304d36; color: #f9faf3; border-radius: 8px; padding: 13px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 550; cursor: pointer; margin-top: 18px; transition: background-color 90ms linear; }
+.submit:hover:enabled { background: #436248; }
+.submit:disabled { opacity: .55; cursor: default; }
+.submit > span { font-size: 19px; }
+.error, .message { font-size: 11px; line-height: 1.8; }
+.error { color: #a56048; }
+.message { color: #697d59; }
+.error:not(:empty), .message:not(:empty) { margin-top: 12px; }
+.formNote { text-align: center; font-size: 9px; line-height: 1.8; color: #949c89; margin-top: 17px; }
+.footer { border-top: 1px solid #e3e7d9; padding-top: 21px; display: flex; justify-content: space-between; font-size: 9px; color: #939c87; }
+@media (max-width: 900px) { .content { gap: 42px; } .card { padding: 28px; } .housemates { gap: 10px; } .housemates img { width: 37px; height: 37px; } }
+@media (max-width: 700px) { .shell { padding: 25px 22px; } .content { grid-template-columns: 1fr; gap: 32px; padding: 42px 0; } .story h1 { font-size: 43px; letter-spacing: -1.8px; } .story h1 br { display: none; } .intro { font-size: 12px; max-width: 100%; margin-top: 17px; } .housemates { gap: 15px; margin-top: 24px; } .housemates img { width: 39px; height: 39px; } .housemates span { font-size: 8px; } .together { display: none; } .card { padding: 27px; } .form input:not([type="hidden"]) { font-size: 16px; } .footer { font-size: 8px; gap: 12px; } }
+@media (max-width: 380px) { .shell { padding-left: 16px; padding-right: 16px; } .housemates { gap: 12px; } .housemates img { width: 36px; height: 36px; } .card { padding: 23px; } }
+@media (prefers-reduced-motion: reduce) { .submit { transition: none; } }

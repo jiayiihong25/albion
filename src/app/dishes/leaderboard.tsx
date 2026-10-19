@@ -6,6 +6,7 @@ import { buildDishLeaderboard, DISH_ROTATION } from "@/lib/dish-calendar";
 import type { DishCompletion } from "@/lib/types";
 import styles from "./dishes.module.css";
 import { Avatar } from "./avatar";
+import { HouseArt } from "@/components/house-art";
 
 type Scores = ReturnType<typeof buildDishLeaderboard>;
 
@@ -55,7 +56,7 @@ export function DishLeaderboard({ refreshKey }: { refreshKey: number }) {
     <aside className={styles.leaderboard} aria-labelledby="leaderboard-heading">
       <div className={styles.leaderboardHeading}>
         <p className={styles.eyebrow}>A LITTLE HEALTHY COMPETITION</p>
-        <h2 id="leaderboard-heading">The clean plate club<span>✦</span></h2>
+        <h2 id="leaderboard-heading">The clean plate club<HouseArt name="trophy" size={46} /></h2>
         <p>All-time house leaderboard</p>
       </div>
       <ol className={styles.leaderboardRows}>
