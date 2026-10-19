@@ -34,6 +34,15 @@ export default async function Home() {
             Track what&apos;s in the fridge and when it expires.
           </p>
         </Link>
+        <Link
+          href="/inbox"
+          className="rounded-lg border p-6 transition-colors duration-100 ease-linear hover:bg-neutral-50 sm:col-span-2"
+        >
+          <HouseArt name="shared" size={72} /><h2 className="mt-3 text-xl font-semibold">House Inbox</h2>
+          <p className="mt-1 text-sm text-neutral-500">
+            Review dish photos, cast your vote, and check your submission results.
+          </p>
+        </Link>
       </div>
 
       <p className="text-xs text-neutral-400">More house tasks coming soon.</p>
