@@ -6,5 +6,5 @@ export function normalizeEmail(value: unknown) {
 
 /** Only known house pages are allowed as post-login destinations. */
 export function safeReturnPath(value: unknown) {
-  return typeof value === "string" && ["/", "/dishes", "/fridge", "/inbox"].includes(value) ? value : "/dishes";
+  return typeof value === "string" && ["/", "/dishes", "/fridge"].includes(value) ? value : "/dishes";
 }

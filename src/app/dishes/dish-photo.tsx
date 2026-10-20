@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DISH_PHOTO_BUCKET } from "@/lib/dish-photos";
-import styles from "./inbox.module.css";
+import styles from "./dishes.module.css";
 
 export function DishPhoto({ photoPath }: { photoPath: string | null }) {
   const supabase = useMemo(() => createClient(), []);
@@ -36,7 +36,7 @@ export function DishPhoto({ photoPath }: { photoPath: string | null }) {
     return () => { active = false; controller.abort(); window.clearTimeout(timer); if (url) URL.revokeObjectURL(url); };
   }, [supabase, photoPath, retry]);
 
-  if (!photoPath) return null;
+  if (!photoPath) return <p className={styles.noPhoto}>No photo was saved with this earlier check-in.</p>;
   if (current?.error) return <div className={styles.savedPhoto} role="status"><p>The photo couldn’t load.</p><button className={styles.secondaryButton} onClick={() => setRetry((value) => value + 1)}>Retry photo</button></div>;
   if (!current?.url) return <p className={styles.noPhoto} role="status">Loading the clean-sink photo…</p>;
   return <div className={styles.savedPhoto}><Image src={current.url} alt="Photo attached to this dish check-in" width={640} height={480} unoptimized /><a href={current.url} target="_blank" rel="noreferrer">View full photo</a></div>;

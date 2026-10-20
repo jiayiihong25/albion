@@ -13,7 +13,7 @@ export const DISH_ROTATION = [
 
 export type DishStatus = "done" | "due" | "missed" | "upcoming";
 
-export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[], completions: DishCompletion[]) {
+export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[], completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[]) {
   const scores = DISH_ROTATION.map((person) => {
     const roommate = roommates.find((r) => r.name === person.name);
     let onTime = 0;

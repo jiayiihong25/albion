@@ -27,7 +27,7 @@ export function DishLeaderboard({ refreshKey }: { refreshKey: number }) {
           .in("name", DISH_ROTATION.map((person) => person.name)).abortSignal(controller.signal);
         if (people.error) throw new Error(people.error.message);
         if (people.data.length !== DISH_ROTATION.length) throw new Error("The house rotation needs to be connected first.");
-        const entries: DishCompletion[] = [];
+        const entries: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[] = [];
         // Paginate all history: an all-time leaderboard must not stop at the API row limit.
         let total = Infinity;
         while (entries.length < total) {
@@ -70,7 +70,7 @@ export function DishLeaderboard({ refreshKey }: { refreshKey: number }) {
         ))}
       </ol>
       <div className={styles.scoringKey}><span><strong>+3</strong> On time</span><span><strong>+1</strong> Late</span><span><strong>0</strong> Incomplete</span></div>
-      <p className={styles.scoringNote}>Approved washes earn points. Submit by midnight Toronto time for full points; voting can finish later. Covering a shift earns the washer the points. Ties share a rank.</p>
+      <p className={styles.scoringNote}>Check in by midnight Toronto time for full points. Covering a shift earns the washer the points. Ties share a rank.</p>
       {!supabase ? <p className={styles.scoreError}>Connect the calendar to load scores.</p> : error ? <div className={styles.scoreError} role="status"><p>{scores ? "Showing the last loaded scores. " : ""}{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>Refresh scores</button></div> : null}
     </aside>
   );

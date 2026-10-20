@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import type { DishCompletion, DishSubmission, DishVote, Roommate } from "@/lib/types";
+import type { DishCompletion, Roommate } from "@/lib/types";
 import {
   addDays, DISH_ROTATION, dishStatus, formatCalendarDate, HOUSE_TIME_ZONE,
   houseToday, scheduledRoommate, startOfWeek, weekLabel,
@@ -15,8 +15,8 @@ import { DishLeaderboard } from "./leaderboard";
 import { Avatar } from "./avatar";
 import { MemberMenu } from "@/components/member-menu";
 import { HouseArt } from "@/components/house-art";
-import { DISH_PHOTO_TYPES, saveDishSubmission, validateDishPhoto } from "@/lib/dish-photos";
-import { reviewSummary } from "@/lib/dish-reviews";
+import { DISH_PHOTO_TYPES, saveDishCheckIn, validateDishPhoto } from "@/lib/dish-photos";
+import { DishPhoto } from "./dish-photo";
 
 function subscribeToDate(onChange: () => void) {
   const timer = window.setInterval(onChange, 30_000);
@@ -29,14 +29,12 @@ function subscribeToDate(onChange: () => void) {
 
 function serverDate() { return ""; }
 
-const STATUS_LABELS = { done: "Washed", due: "Due today", missed: "Missed", upcoming: "Upcoming", pending: "In review" };
+const STATUS_LABELS = { done: "Washed", due: "Due today", missed: "Missed", upcoming: "Upcoming" };
 
 type WeekData = {
   week: string;
   roommates: Roommate[];
   completions: DishCompletion[];
-  submissions: DishSubmission[];
-  votes: DishVote[];
   error: string | null;
   needsMigration: string | null;
 };
@@ -66,16 +64,12 @@ export default function DishCalendar({ member }: { member: Roommate }) {
   const days = week ? Array.from({ length: 7 }, (_, i) => addDays(week, i)) : [];
   const completions = data?.completions ?? [];
   const selectedCompletion = completions.find((entry) => entry.performed_on === selectedDate);
-  const selectedSubmission = data?.submissions.find((entry) => entry.performed_on === selectedDate && entry.status === "pending");
-  const selectedReview = selectedSubmission ? reviewSummary(selectedSubmission, data?.votes ?? [], member.id) : null;
   const assigned = selectedDate ? scheduledRoommate(selectedDate) : null;
   const selectedRoommate = member;
   const isFuture = selectedDate > today;
   const washedCount = completions.length;
   const dueCount = ready ? days.filter((day) => day <= today && !completions.some((entry) => entry.performed_on === day)).length : 0;
   const todayPerson = today ? scheduledRoommate(today) : null;
-  const pendingCount = data?.submissions.length ?? 0;
-  const todayPending = data?.submissions.some((entry) => entry.performed_on === today);
   const todayComplete = completions.some((entry) => entry.performed_on === today);
   const isThisWeek = weekOffset === 0;
 
@@ -86,26 +80,22 @@ export default function DishCalendar({ member }: { member: Roommate }) {
     let active = true;
     async function loadWeek() {
       try {
-        const [people, entries, reviews] = await Promise.all([
+        const [people, entries] = await Promise.all([
           supabase!.from("roommates").select("*").in("name", DISH_ROTATION.map((p) => p.name)).order("name").abortSignal(controller.signal),
-          supabase!.from("dish_completions").select("performed_on,roommate_id,created_at")
+          supabase!.from("dish_completions").select("performed_on,roommate_id,created_at,photo_path")
             .gte("performed_on", week).lte("performed_on", addDays(week, 6)).order("performed_on").abortSignal(controller.signal),
-          supabase!.from("dish_submissions").select("*").eq("status", "pending")
-            .gte("performed_on", week).lte("performed_on", addDays(week, 6)).abortSignal(controller.signal),
         ]);
-        const ballots = reviews.data?.length ? await supabase!.from("dish_votes").select("*")
-          .in("submission_id", reviews.data.map((entry) => entry.id)).abortSignal(controller.signal) : { data: [], error: null };
         if (!active) return;
         const missingTable = ["PGRST205", "42P01"].includes(entries.error?.code ?? "");
         const missingNames = !people.error && (people.data?.length ?? 0) !== DISH_ROTATION.length;
-        const missingReviews = ["42P01", "PGRST205"].includes(reviews.error?.code ?? "");
+        const missingPhoto = ["42703", "PGRST204"].includes(entries.error?.code ?? "");
         setWeekData({
-          week, roommates: people.data ?? [], completions: entries.data ?? [], submissions: reviews.data ?? [], votes: ballots.data ?? [],
-          needsMigration: missingTable || missingNames ? "0002_dish_calendar.sql" : missingReviews ? "0004_dish_reviews.sql" : null,
-          error: missingTable || missingReviews ? null : people.error?.message ?? entries.error?.message ?? reviews.error?.message ?? ballots.error?.message ?? null,
+          week, roommates: people.data ?? [], completions: entries.data ?? [],
+          needsMigration: missingTable || missingNames ? "0002_dish_calendar.sql" : missingPhoto ? "0005_direct_dish_check_ins.sql" : null,
+          error: missingTable || missingPhoto ? null : people.error?.message ?? entries.error?.message ?? null,
         });
       } catch {
-        if (active) setWeekData({ week, roommates: [], completions: [], submissions: [], votes: [], error: "We couldn’t reach the house calendar. Check your connection and try again.", needsMigration: null });
+        if (active) setWeekData({ week, roommates: [], completions: [], error: "We couldn’t reach the house calendar. Check your connection and try again.", needsMigration: null });
       } finally {
         window.clearTimeout(timeout);
       }
@@ -198,24 +188,24 @@ export default function DishCalendar({ member }: { member: Roommate }) {
 
   async function submitWash(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current || !supabase || !ready || !photo || !selectedRoommate || selectedCompletion || selectedSubmission) return;
+    if (submitting.current || !supabase || !ready || !photo || !selectedRoommate || selectedCompletion) return;
     if (selectedDate > houseToday()) { setFormError("You can check in once this day arrives."); return; }
     submitting.current = true;
     setSaving(true);
     setSaveStage("uploading");
     setFormError(null);
     try {
-      const result = await saveDishSubmission(supabase, { file: photo.file, performedOn: selectedDate, roommateId: selectedRoommate.id }, setSaveStage);
+      const result = await saveDishCheckIn(supabase, { file: photo.file, performedOn: selectedDate, roommateId: selectedRoommate.id }, setSaveStage);
       if (!result.ok) {
         setFormError(result.message);
         if (result.duplicate) setReload((value) => value + 1);
         return;
       }
-      const submission = result.submission;
+      const completion = result.completion;
       setWeekData((previous) => previous?.week === week
-        ? { ...previous, submissions: [...previous.submissions.filter((entry) => entry.performed_on !== selectedDate), submission] }
+        ? { ...previous, completions: [...previous.completions.filter((entry) => entry.performed_on !== selectedDate), completion] }
         : previous);
-      setNotice(`${selectedRoommate.name} checked in for ${formatCalendarDate(selectedDate, { weekday: "long", month: "short", day: "numeric" })}. Sent to the other five members for review.`);
+      setNotice(`${selectedRoommate.name} checked in for ${formatCalendarDate(selectedDate, { weekday: "long", month: "short", day: "numeric" })}. Dishes done! Photo saved.`);
       setScoreRevision((value) => value + 1);
       setPhoto(null);
       if (fileInput.current) fileInput.current.value = "";
@@ -243,7 +233,7 @@ export default function DishCalendar({ member }: { member: Roommate }) {
         </header>
 
         <section className={styles.todayBanner} aria-label="Today’s dish duty">
-          <div className={styles.todayIntro}><HouseArt name="dishes" size={84} className={styles.todayArt} /><div><p className={styles.smallLabel}>ON THE ROSTER TODAY</p><h2>{today ? todayComplete ? "All clean for today." : todayPending ? "Today’s wash is in review." : todayPerson ? `${todayPerson.name}, you’re up.` : "A little Sunday teamwork." : "Getting the kitchen ready…"}</h2><p>{today ? `${formatCalendarDate(today, { weekday: "long", month: "long", day: "numeric" })} · ${todayComplete ? "The house thanks you. See you tomorrow." : todayPending ? "Three approvals turn today green. Check your inbox to vote." : todayPerson ? "Leave the sink better than you found it." : "A shared day — anyone can take this one."}` : "Loading your house calendar."}</p></div></div>
+          <div className={styles.todayIntro}><HouseArt name="dishes" size={84} className={styles.todayArt} /><div><p className={styles.smallLabel}>ON THE ROSTER TODAY</p><h2>{today ? todayComplete ? "All clean for today." : todayPerson ? `${todayPerson.name}, you’re up.` : "A little Sunday teamwork." : "Getting the kitchen ready…"}</h2><p>{today ? `${formatCalendarDate(today, { weekday: "long", month: "long", day: "numeric" })} · ${todayComplete ? "The house thanks you. See you tomorrow." : todayPerson ? "Leave the sink better than you found it." : "A shared day — anyone can take this one."}` : "Loading your house calendar."}</p></div></div>
           <button type="button" className={styles.bannerButton} disabled={!today || saving} onClick={() => { changeWeek(0); scrollToCheckIn(); }}>Today’s check-in </button>
         </section>
 
@@ -263,8 +253,7 @@ export default function DishCalendar({ member }: { member: Roommate }) {
             {days.map((day) => {
               const person = scheduledRoommate(day);
               const completion = completions.find((entry) => entry.performed_on === day);
-              const pending = data?.submissions.some((entry) => entry.performed_on === day && entry.status === "pending");
-              const status = pending && !completion ? "pending" : dishStatus(day, today, Boolean(completion));
+              const status = dishStatus(day, today, Boolean(completion));
               const state = ready ? status : "unavailable";
               const actualPerson = completion ? data?.roommates.find((r) => r.id === completion.roommate_id)?.name : null;
               return <button key={day} type="button" className={`${styles.day} ${styles[state]} ${day === selectedDate ? styles.selected : ""}`} disabled={saving} aria-pressed={day === selectedDate} aria-label={`${formatCalendarDate(day, { weekday: "long", month: "long", day: "numeric" })}, ${person?.name ?? "Shared duty"}, ${ready ? STATUS_LABELS[status] : data || !isSupabaseConfigured ? "Unavailable" : "Loading"}`} onClick={() => selectDay(day)}>
@@ -276,28 +265,27 @@ export default function DishCalendar({ member }: { member: Roommate }) {
             })}
           </div>
 
-          <div className={styles.calendarFooter}><div className={styles.legend}><span><i className={styles.greenDot} /> Washed</span><span><i className={styles.redDot} /> Due / missed</span><span><i className={styles.amberDot} /> In review</span><span><i className={styles.greyDot} /> Upcoming</span></div><span>{ready ? <><strong>{washedCount} of 7</strong> days washed{dueCount > 0 && <> · {dueCount - pendingCount} awaiting a check-in{pendingCount > 0 && <> · {pendingCount} in review</>}</>}</> : isSupabaseConfigured && !data ? "Loading check-ins…" : "The rotation is ready. Connect to save check-ins."}</span></div>
+          <div className={styles.calendarFooter}><div className={styles.legend}><span><i className={styles.greenDot} /> Washed</span><span><i className={styles.redDot} /> Due / missed</span><span><i className={styles.greyDot} /> Upcoming</span></div><span>{ready ? <><strong>{washedCount} of 7</strong> days washed{dueCount > 0 && <> · {dueCount} awaiting a check-in</>}</> : isSupabaseConfigured && !data ? "Loading check-ins…" : "The rotation is ready. Connect to save check-ins."}</span></div>
         </section>
 
         <div className={styles.notice} role="status" aria-live="polite">{notice}</div>
 
         {selectedDate && <section id="day-check-in" className={styles.checkIn} aria-labelledby="check-in-heading">
-          <div className={styles.checkInDetails}><p className={styles.eyebrow}>THE DAILY RESET</p><h2 id="check-in-heading">{selectedCompletion ? "Clean sink. Nice work." : selectedSubmission ? "A second pair of eyes." : isFuture ? "A clean slate ahead." : "Done with the dishes?"}</h2><p className={styles.selectedDate}><HouseArt name="calendar" size={25} />{formatCalendarDate(selectedDate, { weekday: "long", month: "long", day: "numeric" })}</p><p className={styles.checkInCopy}>{selectedCompletion ? `${completedBy} took care of this one. One less thing for the house to think about.` : selectedSubmission ? "The house is reviewing this photo. Three approvals turn this day green; three rejections open it for another try." : isFuture ? `${assigned?.name ?? "Everyone"} is on the roster. Come back on the day to attach a photo and check in.` : "Wash up, wipe down, and snap a quick photo. Send it to the house for a quick vote."}</p><div className={styles.assignment}><Avatar name={assigned?.name} /><div><small>ASSIGNED TO</small><strong>{assigned?.name ?? "Everyone · shared Sunday"}</strong></div></div><p className={styles.privacyNote}><HouseArt name="camera" size={26} /> Photos are shared privately for voting, then deleted when the review closes.</p></div>
+          <div className={styles.checkInDetails}><p className={styles.eyebrow}>THE DAILY RESET</p><h2 id="check-in-heading">{selectedCompletion ? "Clean sink. Nice work." : isFuture ? "A clean slate ahead." : "Done with the dishes?"}</h2><p className={styles.selectedDate}><HouseArt name="calendar" size={25} />{formatCalendarDate(selectedDate, { weekday: "long", month: "long", day: "numeric" })}</p><p className={styles.checkInCopy}>{selectedCompletion ? `${completedBy} took care of this one. One less thing for the house to think about.` : isFuture ? `${assigned?.name ?? "Everyone"} is on the roster. Come back on the day to attach a photo and check in.` : "Wash up, wipe down, and snap a quick photo. Submit it to mark this day washed and keep a photo in the house history."}</p><div className={styles.assignment}><Avatar name={assigned?.name} /><div><small>ASSIGNED TO</small><strong>{assigned?.name ?? "Everyone · shared Sunday"}</strong></div></div><p className={styles.privacyNote}><HouseArt name="camera" size={26} /> Photos are saved privately with each check-in for house members to view.</p></div>
 
           <div className={styles.checkInAction}>
-            {selectedCompletion ? <div className={styles.completedPanel}><span className={styles.bigCheck}><HouseArt name="clean-sink" size={128} /></span><span className={styles.eyebrow}>CHECKED IN</span><h3>This day is in the green.</h3><p>Washed by <strong>{completedBy}</strong></p><p className={styles.completionTime}>{new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: HOUSE_TIME_ZONE }).format(new Date(selectedCompletion.created_at))} · Toronto time</p><span className={styles.noPhoto}>Approved washes count toward the house leaderboard.</span></div>
-              : selectedSubmission ? <div className={styles.pendingPanel}><HouseArt name="camera" size={84} /><span className={styles.eyebrow}>AWAITING THE HOUSE</span><h3>Sent for a sink check.</h3><p>{selectedReview?.approvals ?? 0} approvals · {selectedReview?.rejections ?? 0} rejections</p><p>First to three decides. Points follow approval.</p><Link href={`/inbox?review=${selectedSubmission.id}`} className={styles.secondaryButton}>Open review in inbox</Link></div>
+            {selectedCompletion ? <div className={styles.completedPanel}>{!selectedCompletion.photo_path && <span className={styles.bigCheck}><HouseArt name="clean-sink" size={128} /></span>}<span className={styles.eyebrow}>CHECKED IN</span><h3>This day is in the green.</h3><p>Washed by <strong>{completedBy}</strong></p><p className={styles.completionTime}>{new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: HOUSE_TIME_ZONE }).format(new Date(selectedCompletion.created_at))} · Toronto time</p><DishPhoto photoPath={selectedCompletion.photo_path} /></div>
               : isFuture ? <div className={styles.futurePanel}><HouseArt name="calendar" size={96} /><h3>Not quite time yet.</h3><p>Future days stay grey until their turn.<br />Check-ins open on the day.</p><button type="button" className={styles.secondaryButton} onClick={() => changeWeek(0)}>Back to today </button></div>
               : <form onSubmit={submitWash} className={styles.form}>
-                <div className={styles.formHeading}><h3>Make it official</h3><span>HOUSE REVIEW</span></div>
+                <div className={styles.formHeading}><h3>Make it official</h3><span>PHOTO REQUIRED</span></div>
                 <div className={styles.signedInWasher}><Avatar name={member.name} /><div><strong>Checking in as {member.name}</strong><small>{assigned?.name === member.name ? "Your day, your clean slate." : assigned ? `Covering ${assigned.name}’s shift. You earn the points.` : "Taking the Sunday shift. You earn the points."}</small></div></div>
                 <input ref={fileInput} id="dish-photo" className={styles.fileInput} type="file" accept={Object.keys(DISH_PHOTO_TYPES).join(",")} disabled={saving || !ready} onChange={(event) => void attachPhoto(event)} aria-label="Attach a photo of the clean sink" aria-describedby="photo-hint photo-error" />
                 {photo ? <div className={styles.photoPreview}><Image src={photo.url} alt="Your attached photo of the finished dishes" width={640} height={360} unoptimized /><div><span> Photo ready</span><button type="button" disabled={saving} onClick={() => fileInput.current?.click()}>Replace</button><button type="button" disabled={saving} aria-label="Remove attached photo" onClick={() => { setPhoto(null); if (fileInput.current) fileInput.current.value = ""; }}>Remove</button></div></div>
                   : <label htmlFor="dish-photo" className={`${styles.photoDrop} ${!ready ? styles.photoDisabled : ""}`}><HouseArt name="camera" size={72} /><strong>{checkingPhoto ? "Getting your photo ready…" : "Add a photo of the clean sink"}</strong><span>Take a photo or choose from your library</span><small id="photo-hint">JPG, PNG, WebP, AVIF, GIF · up to 20 MB</small></label>}
-                {photo && <span id="photo-hint" className={styles.srOnly}>Photo attached. It will be shared with the other five members for review, then deleted after the decision.</span>}
+                {photo && <span id="photo-hint" className={styles.srOnly}>Photo attached. It will be saved with your check-in for house members to view.</span>}
                 <p id="photo-error" className={styles.formError} role={formError ? "alert" : undefined}>{formError}</p>
-                <button type="submit" className={styles.submitButton} disabled={!ready || !photo || !selectedRoommate || saving || checkingPhoto}>{saving ? saveStage === "uploading" ? "Uploading your photo…" : "Saving your check-in…" : "Send for house approval"}</button>
-                <p className={styles.formFootnote}>{!ready ? "Check-ins will open once the calendar is connected." : "Three approvals count the wash. Your submission time sets the points."}</p>
+                <button type="submit" className={styles.submitButton} disabled={!ready || !photo || !selectedRoommate || saving || checkingPhoto}>{saving ? saveStage === "uploading" ? "Uploading your photo…" : "Saving your check-in…" : "Dishes washed"}</button>
+                <p className={styles.formFootnote}>{!ready ? "Check-ins will open once the calendar is connected." : "Your photo and check-in are saved together. One wash per day."}</p>
               </form>}
           </div>
         </section>}

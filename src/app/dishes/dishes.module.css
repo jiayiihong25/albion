@@ -128,13 +128,6 @@
 .completedPanel p, .futurePanel p { font-size: 12px; color: var(--muted); line-height: 1.9; }
 .completedPanel .completionTime { font-size: 10px; margin-top: 5px; }
 .noPhoto { font-size: 10px; color: #7c8572; margin-top: 26px; }
-.pending { background: #faf1d9; border-color: #e6d5a5; }
-.pending .status { color: #8a6823; }
-.pending .statusDot, .amberDot { background: #b88a36; }
-.pendingPanel { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 330px; padding: 20px; text-align: center; }
-.pendingPanel .eyebrow { margin-top: 12px; }
-.pendingPanel h3 { font-size: 24px; letter-spacing: -.7px; font-weight: 500; margin: 9px 0 14px; }
-.pendingPanel p { font-size: 12px; color: var(--muted); line-height: 1.9; }
 .futurePanel > img { margin-bottom: 15px; }
 .secondaryButton { display: inline-flex; justify-content: center; align-items: center; gap: 12px; border: 1px solid #dce0d3; border-radius: 7px; font-size: 11px; padding: 10px 15px; margin-top: 24px; }
 .secondaryButton:hover { background: #f1f4e8; }
@@ -283,3 +276,8 @@
 @media (prefers-reduced-motion: reduce) {
   .day, .photoDrop { transition: none; }
 }
+
+.savedPhoto { width: 100%; margin-top: 22px; }
+.savedPhoto img { width: 100%; height: auto; max-height: 360px; object-fit: contain; border-radius: 9px; background: #f0f2ea; }
+.savedPhoto a { display: inline-block; margin-top: 9px; font-size: 11px; color: #637d4d; text-decoration: underline; text-underline-offset: 3px; }
+.savedPhoto .secondaryButton { margin-top: 10px; }

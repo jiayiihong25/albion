@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DishSubmission } from "./types";
+import type { DishCompletion } from "./types";
 
 export const DISH_PHOTO_BUCKET = "dish-photos";
 export const DISH_PHOTO_TYPES: Record<string, string> = {
@@ -15,10 +15,10 @@ export function validateDishPhoto(file: Pick<File, "type" | "size">): string | n
 }
 
 type SaveResult =
-  | { ok: true; submission: DishSubmission }
+  | { ok: true; completion: DishCompletion }
   | { ok: false; message: string; duplicate?: boolean };
 
-export async function saveDishSubmission(
+export async function saveDishCheckIn(
   client: SupabaseClient,
   input: { file: File; performedOn: string; roommateId: string },
   onStage?: (stage: "uploading" | "saving") => void,
@@ -39,9 +39,9 @@ export async function saveDishSubmission(
   let duplicate = false;
   let safeToCleanUp = false;
   try {
-    const { data, error } = await client.rpc("submit_dish_review", { p_performed_on: input.performedOn, p_photo_path: path })
+    const { data, error } = await client.rpc("submit_dish_check_in", { p_performed_on: input.performedOn, p_photo_path: path })
       .abortSignal(AbortSignal.timeout(15_000));
-    if (!error && data) return { ok: true, submission: data as DishSubmission };
+    if (!error && data) return { ok: true, completion: data as DishCompletion };
     duplicate = error?.code === "23505";
     // A database error confirms rollback. A network failure leaves the outcome
     // unknown, so retain the private draft rather than race a pending commit.
@@ -51,17 +51,17 @@ export async function saveDishSubmission(
   }
 
   try {
-    const { data } = await client.from("dish_submissions").select("*")
+    const { data } = await client.from("dish_completions").select("performed_on,roommate_id,created_at,photo_path")
       .eq("photo_path", path).abortSignal(AbortSignal.timeout(10_000)).maybeSingle();
-    if (data?.photo_path === path && data.roommate_id === input.roommateId) return { ok: true, submission: data as DishSubmission };
+    if (data?.photo_path === path && data.roommate_id === input.roommateId) return { ok: true, completion: data as DishCompletion };
     if (data) { duplicate = true; safeToCleanUp = true; }
   } catch {
-    // Cleanup policy protects photos attached to an active review.
+    // Cleanup policy protects photos attached to a recorded check-in.
   }
   if (safeToCleanUp) {
     try { await bucket.remove([path]); } catch { /* An unused draft remains private if cleanup fails. */ }
   }
   return duplicate
-    ? { ok: false, duplicate: true, message: "This day already has a check-in or pending review. Refreshing the calendar…" }
-    : { ok: false, message: "Your review request couldn’t send. Your photo is still here so you can try again." };
+    ? { ok: false, duplicate: true, message: "Someone already checked in for this day. Refreshing the calendar…" }
+    : { ok: false, message: "Your check-in couldn’t save. Your photo is still here so you can try again." };
 }

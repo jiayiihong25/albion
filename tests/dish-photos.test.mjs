@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { saveDishSubmission, validateDishPhoto } = require("../src/lib/dish-photos.ts");
+const { saveDishCheckIn, validateDishPhoto } = require("../src/lib/dish-photos.ts");
 const file = new File(["photo bytes"], "private-original-name.jpg", { type: "image/jpeg" });
 const input = { file, performedOn: "2026-10-19", roommateId: "member-id" };
 
@@ -45,9 +45,9 @@ function mockClient(options = {}) {
     events,
     client: {
       storage: { from(name) { assert.equal(name, "dish-photos"); return bucket; } },
-      from(name) { assert.equal(name, "dish_submissions"); return query; },
+      from(name) { assert.equal(name, "dish_completions"); return query; },
       rpc(name, values) {
-        assert.equal(name, "submit_dish_review");
+        assert.equal(name, "submit_dish_check_in");
         events.push("insert");
         inserted = { performed_on: values.p_performed_on, photo_path: values.p_photo_path, roommate_id: input.roommateId };
         return { abortSignal() { return query.save(); } };
@@ -67,44 +67,44 @@ test("photo validation rejects empty, oversized and active image formats", () =>
 test("a check-in uploads first and saves a private path without the original filename", async () => {
   const { client, events } = mockClient();
   const stages = [];
-  const result = await saveDishSubmission(client, input, (stage) => stages.push(stage));
+  const result = await saveDishCheckIn(client, input, (stage) => stages.push(stage));
   assert.equal(result.ok, true);
-  assert.equal(result.submission.roommate_id, input.roommateId);
+  assert.equal(result.completion.roommate_id, input.roommateId);
   assert.deepEqual(events, ["upload", "insert"]);
   assert.deepEqual(stages, ["uploading", "saving"]);
 });
 
 test("failed uploads never create a check-in", async () => {
   const { client, events } = mockClient({ uploadError: { message: "denied" } });
-  const result = await saveDishSubmission(client, input);
+  const result = await saveDishCheckIn(client, input);
   assert.equal(result.ok, false);
   assert.deepEqual(events, ["upload"]);
 });
 
-test("a lost response recovers the saved submission without deleting its photo", async () => {
+test("a lost response recovers the saved check-in without deleting its photo", async () => {
   const { client, events } = mockClient({ insertThrows: true, recoverOwn: true });
-  const result = await saveDishSubmission(client, input);
+  const result = await saveDishCheckIn(client, input);
   assert.equal(result.ok, true);
   assert.deepEqual(events, ["upload", "insert", "recover"]);
 });
 
 test("a duplicate cleans up only the new unused upload", async () => {
   const { client, events } = mockClient({ insertError: { code: "23505" },  });
-  const result = await saveDishSubmission(client, input);
+  const result = await saveDishCheckIn(client, input);
   assert.equal(result.duplicate, true);
   assert.deepEqual(events, ["upload", "insert", "recover", "cleanup"]);
 });
 
-test("a rejected review request cleans up its unused photo even when cleanup fails", async () => {
+test("a rejected check-in cleans up its unused photo even when cleanup fails", async () => {
   const { client, events } = mockClient({ insertError: { code: "42501" }, cleanupThrows: true });
-  const result = await saveDishSubmission(client, input);
+  const result = await saveDishCheckIn(client, input);
   assert.equal(result.ok, false);
   assert.deepEqual(events, ["upload", "insert", "recover", "cleanup"]);
 });
 
 test("an unknown commit outcome retains its private upload to avoid a pending-write race", async () => {
   const { client, events } = mockClient({ insertThrows: true, recoveryThrows: true });
-  const result = await saveDishSubmission(client, input);
+  const result = await saveDishCheckIn(client, input);
   assert.equal(result.ok, false);
   assert.deepEqual(events, ["upload", "insert", "recover"]);
 });
