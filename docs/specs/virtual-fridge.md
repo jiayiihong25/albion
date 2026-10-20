@@ -1,6 +1,12 @@
 # Spec: Virtual Fridge
 
-Status: draft · Owner: Jia Yi · Last updated: 2026-10-20
+Status: draft, **not started** · Owner: Jia Yi · Last updated: 2026-10-20
+
+> **On hold:** don't start building until the site-wide layout PR (in progress
+> by another contributor) has merged. Once it lands, go through §8 (visual
+> design) and §12 (implementation plan) and adapt them to the new layout, nav
+> and styling conventions. Data-layer work (§4, §5, §7) doesn't depend on the
+> layout, but it should ship together with the UI.
 
 ## 1. Summary
 
