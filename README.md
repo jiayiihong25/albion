@@ -37,6 +37,18 @@ A fun house management app for tracking dishes washed, fridge inventory, and mor
    private photo history. If 0004 is already applied, run only 0005. No extra
    Storage dashboard setup is needed.
 
+8. Apply `supabase/migrations/0006_virtual_fridge.sql` for the virtual fridge.
+   It adds locations and estimated best-before dates, seeds the shelf-life
+   table, and turns on Realtime for `fridge_items`. It is safe to re-run.
+
+### Running everything locally
+
+With Docker running, `npx supabase start` brings up a local Supabase on port
+54321 and applies every migration (config in `supabase/config.toml`). Put the
+printed local URL and anon key in `.env.local`, create a user under
+Authentication, and link it to a roommate as described in
+[supabase/AUTH_SETUP.md](supabase/AUTH_SETUP.md).
+
 ## Features (MVP)
 
 - **Dish Duty** (`/dishes`) — a Monday–Sunday calendar with week navigation.
@@ -51,8 +63,16 @@ A fun house management app for tracking dishes washed, fridge inventory, and mor
   1 point for a late check-in, and 0 for incomplete days. Ties share a rank.
   Six generated character portraits are in `public/avatars/`, with their
   prompts documented there.
-- **Fridge Management** (`/fridge`) — add items with quantity/expiry, see what's
-  expiring soon, mark items as finished.
+- **The fridge** (`/fridge`) — an illustrated fridge, freezer, pantry and
+  household box ([spec](docs/specs/virtual-fridge.md)). Paste a grocery email
+  to unpack a whole run at once. Each item gets a spot and a rough
+  best-before date from the `shelf_life_defaults` table. You can check the
+  list and fix anything before saving, and Undo for a few seconds afterwards.
+  The door display shows the time, a mood face and a ticker of food to eat
+  soon. Items about to go off wobble, and expired ones sprout stink lines.
+  Tap an item to rename it, change its date, move it (freezing re-estimates
+  the date) or mark it finished. Changes show up live on every open phone,
+  and a plain list view is one tap away.
 
 ## Notes
 
@@ -72,7 +92,8 @@ A fun house management app for tracking dishes washed, fridge inventory, and mor
   disables voting, notifications, and automatic photo deletion. Historical review
   tables remain an administrator-only archive. Previously deleted files cannot
   be recovered. Old `/inbox` links redirect to `/dishes`.
-- `npm test` covers calendar/auth/upload behavior plus the actual migrations and
+- `npm test` covers calendar/auth/upload behavior, the grocery parser and
+  shelf-life matching, plus the actual migrations and
   permissions in an isolated PostgreSQL WASM runtime (PGlite), with local Auth
   and Storage metadata fixtures. Tests never touch the live house database.
 - Accounts are created and linked by the house administrator. Normal password
