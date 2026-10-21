@@ -2,7 +2,7 @@
 
 import { useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import type { FridgeItem, Roommate } from "@/lib/types";
+import type { FridgeItem, Roommate, ShelfLifeDefault } from "@/lib/types";
 import { HOUSE_TIME_ZONE, houseToday } from "@/lib/dish-calendar";
 import { itemsToUseSoon } from "@/lib/fridge-layout";
 import { expiryLabel } from "@/lib/expiry";
@@ -15,6 +15,7 @@ import { ListView } from "./list-view";
 import { ItemSheet } from "./item-sheet";
 import { AddSheet } from "./add-sheet";
 import { ImportSheet } from "./import-sheet";
+import { FoodArtDefaults } from "./food-icon";
 import styles from "./fridge.module.css";
 
 function subscribeToClock(onChange: () => void) {
@@ -24,6 +25,7 @@ function subscribeToClock(onChange: () => void) {
 }
 const clockNow = () => new Intl.DateTimeFormat("en-CA", { hour: "numeric", minute: "2-digit", timeZone: HOUSE_TIME_ZONE }).format(new Date()).replace(/\s?([ap])\.?m\.?/i, (_, m) => ` ${m.toUpperCase()}M`);
 const serverValue = () => "";
+const NO_DEFAULTS: ShelfLifeDefault[] = [];
 
 // The fridge/list choice is remembered per phone.
 type View = "fridge" | "list";
@@ -123,6 +125,7 @@ export default function FridgeInventory({ member }: { member: Roommate }) {
 
   return (
     <MotionConfig reducedMotion="user">
+      <FoodArtDefaults value={fridge.data?.defaults ?? NO_DEFAULTS}>
       <main className={`${shell.page} ${styles.page}`}>
         <div className={shell.shell} inert={Boolean(sheet)}>
           <HouseNav member={member} section="fridge" />
@@ -179,6 +182,7 @@ export default function FridgeInventory({ member }: { member: Roommate }) {
           </AnimatePresence>
         </div>
       </main>
+      </FoodArtDefaults>
     </MotionConfig>
   );
 }

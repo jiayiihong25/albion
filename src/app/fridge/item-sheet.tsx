@@ -7,6 +7,7 @@ import { estimateItem, LOCATION_ICONS, moveItem } from "@/lib/shelf-life";
 import { HOUSE_TIME_ZONE } from "@/lib/dish-calendar";
 import { LOCATION_LABELS, type ItemChanges } from "./use-fridge";
 import { Sheet } from "./sheet";
+import { FoodIcon } from "./food-icon";
 import styles from "./fridge.module.css";
 
 export const LOCATIONS = Object.keys(LOCATION_LABELS) as FridgeLocation[];
@@ -47,7 +48,7 @@ export function ItemSheet({ item, today, defaults, addedBy, onClose, onSave, onF
   return (
     <Sheet title="What’s in the fridge" eyebrow={`${LOCATION_LABELS[item.location].toUpperCase()} · ADDED ${added.toUpperCase()} BY ${addedBy.toUpperCase()}`} onClose={onClose}>
       <div className={styles.itemHero}>
-        <span className={styles.itemHeroIcon} aria-hidden="true">{draft.icon ?? LOCATION_ICONS[draft.location]}</span>
+        <FoodIcon className={styles.itemHeroIcon} name={draft.name} location={draft.location} emoji={draft.icon} />
         <label className={styles.field} style={{ marginTop: 0, flex: 1 }}><span className={styles.srOnly}>Name</span>
           <input className={`${styles.input} ${styles.nameInput}`} value={draft.name} maxLength={120} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
       </div>

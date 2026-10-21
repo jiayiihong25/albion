@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import type { FridgeItem } from "@/lib/types";
 import { expiryLabel, freshness } from "@/lib/expiry";
-import { LOCATION_ICONS } from "@/lib/shelf-life";
+import { FoodIcon } from "./food-icon";
 import styles from "./fridge.module.css";
 
 const DESCRIBE = { expired: "expired", today: "expires today", soon: "use soon", fresh: "fresh", none: "no best-before date" };
@@ -27,7 +27,7 @@ export function ItemTile({ item, today, addedBy, dropIndex, highlighted, onSelec
       title={item.name}
     >
       {state === "expired" && <span className={styles.stink} aria-hidden="true" />}
-      <span className={styles.tileIcon} aria-hidden="true">{item.icon ?? LOCATION_ICONS[item.location]}</span>
+      <FoodIcon className={styles.tileIcon} name={item.name} location={item.location} emoji={item.icon} />
       <span className={styles.tileName} aria-hidden="true">{item.name}</span>
       {label && <span className={styles.tileExpiry} aria-hidden="true">{label}</span>}
     </motion.button>

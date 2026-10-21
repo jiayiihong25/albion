@@ -114,6 +114,8 @@
 .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 6px 2px 3px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); z-index: 1; }
 .tile:hover { background: #ffffffa8; }
 .tileIcon { font-size: 30px; line-height: 1.05; filter: drop-shadow(0 3px 2px #2f4d3630); }
+/* Food illustrations take the place of an emoji at roughly the same size. */
+.foodArt { display: block; width: 1.2em; height: 1.2em; object-fit: contain; }
 .tileName { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; font-weight: 550; color: #3d4c41; }
 .tileExpiry { font-size: 8px; font-weight: 650; letter-spacing: .2px; color: #849080; white-space: nowrap; }
 .soon .tileExpiry { color: #a06a1c; }

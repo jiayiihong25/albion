@@ -7,6 +7,7 @@ import { expiryLabel, freshness } from "@/lib/expiry";
 import { LOCATION_ICONS } from "@/lib/shelf-life";
 import { LOCATION_LABELS } from "./use-fridge";
 import { LOCATIONS } from "./item-sheet";
+import { FoodIcon } from "./food-icon";
 import styles from "./fridge.module.css";
 
 export function ListView({ items, useSoon, today, nameFor, onSelect, onFinish }: {
@@ -20,7 +21,7 @@ export function ListView({ items, useSoon, today, nameFor, onSelect, onFinish }:
     return (
       <motion.li key={item.id} layout initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24, transition: { duration: .2 } }}>
         <button type="button" className={styles.listItem} onClick={() => onSelect(item)}>
-          <span aria-hidden="true">{item.icon ?? LOCATION_ICONS[item.location]}</span>
+          <FoodIcon name={item.name} location={item.location} emoji={item.icon} />
           <span style={{ minWidth: 0 }}><strong>{item.name}</strong><small>{LOCATION_LABELS[item.location]} · added by {nameFor(item.added_by)}</small></span>
         </button>
         {label && <span className={`${styles.pill} ${state === "soon" ? styles.pillSoon : state === "today" || state === "expired" ? styles.pillGone : ""}`}>{label}</span>}
