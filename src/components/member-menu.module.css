@@ -1,0 +1,9 @@
+.menu { position: relative; display: inline-flex; align-items: center; gap: 14px; color: #53664a; font-family: var(--font-geist-sans), sans-serif; }
+.identity { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 550; }
+.identity > span:first-child { width: 28px; height: 28px; }
+.menu button { color: #7f8a73; font-size: 10px; background: transparent; border: 0; cursor: pointer; padding: 7px 0 7px 13px; border-left: 1px solid #dce1d2; }
+.menu button:hover { color: #3a5330; }
+.menu button:disabled { opacity: .5; cursor: default; }
+.menu button:focus-visible { outline: 2px solid #6c8457; outline-offset: 4px; }
+.error { position: absolute; top: 100%; right: 0; font-size: 10px; color: #a15d45; white-space: nowrap; }
+@media (max-width: 480px) { .identity > span:last-child { display: none; } .menu { gap: 8px; } .menu button { padding-left: 8px; } }

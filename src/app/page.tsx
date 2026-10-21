@@ -1,10 +1,15 @@
 import Link from "next/link";
+import { requireHouseMember } from "@/lib/house-member";
+import { MemberMenu } from "@/components/member-menu";
+import { HouseArt } from "@/components/house-art";
 
-export default function Home() {
+export default async function Home() {
+  const member = await requireHouseMember("/");
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-8 p-6 py-16">
+      <div className="flex justify-end"><MemberMenu member={member} /></div>
       <div>
-        <h1 className="text-3xl font-bold">🏠 House Tracker</h1>
+        <h1 className="flex items-center gap-4 text-3xl font-bold"><HouseArt name="house" size={80} />House Tracker</h1>
         <p className="mt-2 text-neutral-500">
           Dishes, fridge, and everything else the six of us need to keep track of.
         </p>
@@ -13,18 +18,18 @@ export default function Home() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Link
           href="/dishes"
-          className="rounded-lg border p-6 transition hover:bg-neutral-50"
+          className="rounded-lg border p-6 transition-colors duration-100 ease-linear hover:bg-neutral-50"
         >
-          <h2 className="text-xl font-semibold">🍽️ Dish Tally</h2>
+          <HouseArt name="dishes" size={80} /><h2 className="mt-3 text-xl font-semibold">Dish Duty</h2>
           <p className="mt-1 text-sm text-neutral-500">
-            Log who washed the dishes and see the running count.
+            See the weekly rotation and check in with a photo of the clean sink.
           </p>
         </Link>
         <Link
           href="/fridge"
-          className="rounded-lg border p-6 transition hover:bg-neutral-50"
+          className="rounded-lg border p-6 transition-colors duration-100 ease-linear hover:bg-neutral-50"
         >
-          <h2 className="text-xl font-semibold">🧊 Fridge Management</h2>
+          <HouseArt name="fridge" size={80} /><h2 className="mt-3 text-xl font-semibold">Fridge Management</h2>
           <p className="mt-1 text-sm text-neutral-500">
             Track what&apos;s in the fridge and when it expires.
           </p>

@@ -12,6 +12,13 @@ export type DishTally = {
   created_at: string;
 };
 
+export type DishCompletion = {
+  performed_on: string;
+  roommate_id: string;
+  created_at: string;
+  photo_path: string | null;
+};
+
 export type FridgeItem = {
   id: string;
   name: string;
