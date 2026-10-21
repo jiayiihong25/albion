@@ -53,6 +53,8 @@ export async function handleSignUp(_previous: SignUpState, formData: FormData): 
     if (error) {
       return { ...base, error: error.code === "user_already_exists" || error.code === "email_exists"
         ? "That email already has an account. Sign in instead."
+        // Signing up again with an unconfirmed email re-sends the link, which Supabase throttles.
+        : error.code === "over_email_send_rate_limit" ? "We’ve already emailed this address a confirmation link. Use it, then sign in."
         : error.code === "signup_disabled" ? "New accounts are switched off right now. Ask Kevin to turn them on."
           : error.code === "weak_password" ? "Pick a stronger password: longer, and not a common one."
             : error.status === 429 ? "Too many sign-ups just now. Wait a moment and try again."
