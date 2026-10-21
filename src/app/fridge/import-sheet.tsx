@@ -10,7 +10,8 @@ import { Sheet } from "./sheet";
 import styles from "./fridge.module.css";
 
 type Row = {
-  key: number; name: string; count: number; include: boolean; edited: boolean;
+  // `edited` drives the review badges; `dateSetByHand` alone makes the saved date "manual".
+  key: number; name: string; count: number; include: boolean; edited: boolean; dateSetByHand: boolean;
   location: FridgeLocation; expiresAt: string; keyword: string | null; icon: string; zone: NewFridgeItem["zone"];
 };
 
@@ -35,7 +36,7 @@ export function ImportSheet({ today, defaults, memberName, onClose, onSave }: {
     setError(null);
     setRows(lines.map((line, key) => {
       const estimate = estimateItem(line.name, defaults, today);
-      return { key, name: line.name, count: line.count, include: true, edited: false, location: estimate.location, expiresAt: estimate.expiresAt ?? "", keyword: estimate.keyword, icon: estimate.icon, zone: estimate.zone };
+      return { key, name: line.name, count: line.count, include: true, edited: false, dateSetByHand: false, location: estimate.location, expiresAt: estimate.expiresAt ?? "", keyword: estimate.keyword, icon: estimate.icon, zone: estimate.zone };
     }));
   }
 
@@ -46,7 +47,7 @@ export function ImportSheet({ today, defaults, memberName, onClose, onSave }: {
       if (changes.location || changes.name !== undefined) {
         // Re-guess the date (and shelf) when what it is or where it goes changes.
         const estimate = estimateItem(next.name, defaults, today, next.location);
-        Object.assign(next, { expiresAt: estimate.expiresAt ?? "", keyword: estimate.keyword, icon: estimate.icon, zone: estimate.zone });
+        Object.assign(next, { expiresAt: estimate.expiresAt ?? "", dateSetByHand: false, keyword: estimate.keyword, icon: estimate.icon, zone: estimate.zone });
       }
       return next;
     }));
@@ -60,7 +61,7 @@ export function ImportSheet({ today, defaults, memberName, onClose, onSave }: {
     const failure = await onSave(chosen.flatMap((row) => Array.from({ length: row.count }, () => ({
       name: row.name.trim(), location: row.location, icon: row.icon, zone: row.zone, import_batch_id: batch,
       expires_at: row.location === "household" ? null : row.expiresAt || null,
-      expiry_source: row.location === "household" || !row.expiresAt ? "none" as const : row.edited ? "manual" as const : "estimated" as const,
+      expiry_source: row.location === "household" || !row.expiresAt ? "none" as const : row.dateSetByHand ? "manual" as const : "estimated" as const,
     }))));
     setSaving(false);
     if (failure) setError(failure);
@@ -102,7 +103,7 @@ export function ImportSheet({ today, defaults, memberName, onClose, onSave }: {
               {LOCATIONS.map((location) => <option key={location} value={location}>{LOCATION_ICONS[location]} {LOCATION_LABELS[location]}</option>)}
             </select>
             {row.location === "household" ? <span className={styles.hint}>No expiry</span>
-              : <input type="date" className={styles.input} value={row.expiresAt} onChange={(event) => setRows((current) => current!.map((r) => r.key === row.key ? { ...r, expiresAt: event.target.value, edited: true } : r))} aria-label={`Best before for ${row.name}`} />}
+              : <input type="date" className={styles.input} value={row.expiresAt} onChange={(event) => setRows((current) => current!.map((r) => r.key === row.key ? { ...r, expiresAt: event.target.value, edited: true, dateSetByHand: true } : r))} aria-label={`Best before for ${row.name}`} />}
           </li>
         ))}
       </ul>
