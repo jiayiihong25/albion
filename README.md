@@ -41,6 +41,11 @@ A fun house management app for tracking dishes washed, fridge inventory, and mor
    It adds locations and estimated best-before dates, seeds the shelf-life
    table, and turns on Realtime for `fridge_items`. It is safe to re-run.
 
+9. Apply `supabase/migrations/0007_house_join.sql`, set a house code, and turn
+   off **Confirm email**, as described in
+   [supabase/AUTH_SETUP.md](supabase/AUTH_SETUP.md). New members then create an
+   account on the login page and claim their housemate with the code.
+
 ### Running everything locally
 
 With Docker running, `npx supabase start` brings up a local Supabase on port

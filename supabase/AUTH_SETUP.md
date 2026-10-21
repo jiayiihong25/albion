@@ -18,29 +18,46 @@ SMTP or email delivery.
 3. Run `house-members.local.sql` in the SQL editor. This local, gitignored file
    links Kevin's approved email to Kevin. The result should show Kevin with
    `login_enabled = true`. The other members can stay unlinked until ready.
-4. Disable public signups in the project's Authentication settings. The app has
-   no signup form, and unlinked Auth users cannot access house data.
+4. Leave public signups on: the other members create their own accounts (see
+   below). Unlinked Auth users still cannot access any house data.
 5. Open `/login` and sign in with that Auth account's email and password. A
    successful login returns you to the house page you were opening. Sign out
    is in the house nav.
 
-## Add the other five members
+## Let the other members join themselves
 
-Create each approved Auth account with a separate password and link its ID to
-the matching roommate. Use `house-members.example.sql` as the template, editing
-a `.local.sql` copy so real email addresses stay out of Git. You can include
-just the new rows.
+Members create their own account on the login page ("Create an account"), then
+pick which unclaimed housemate they are and enter the house code. The database
+checks the code, allows 5 wrong guesses per account every 15 minutes, and never
+lets anyone take a housemate who's already claimed.
 
-The app tells members to contact Kevin if a password needs resetting. Supabase's
-default sender only delivers to project team emails and is rate limited, so
-email-based recovery for other members would require custom SMTP. Password
-login itself does not send email. Email-template changes made while testing
-code login do not affect this password flow.
+1. Apply `migrations/0007_house_join.sql`.
+2. Set the house code in the SQL editor, then share it in the group chat. Use
+   something hard to guess, like three random words:
+
+   ```sql
+   select public.set_house_code('your code here');
+   ```
+
+   Run it again to change the code (accounts that already joined stay in), or
+   with `''` to switch joining off.
+3. In **Authentication → Sign In / Providers**:
+   - keep **Allow new users to sign up** on;
+   - turn **Confirm email** off. Supabase's default email sender only delivers
+     to the project's team, so other members would never get the link. Without
+     a confirmation, a stranger can make an account, but it can't see anything
+     without the house code.
+
+To undo a wrong claim, clear that housemate's link in the SQL editor:
+`update public.roommates set auth_user_id = null where name = 'Alex';`
+
+Linking accounts by hand with `house-members.example.sql` still works too.
 
 ## Behavior and verification
 
 - Unauthenticated requests to `/`, `/dishes`, and `/fridge` redirect to `/login`.
 - An authenticated account still needs a linked `roommates.auth_user_id` to enter.
+  Until it has one, every house page sends it to `/join`.
 - Database policies deny anonymous requests and authenticated non-members.
 - Dish check-ins and fridge additions use the signed-in roommate's ID. Members
   can cover any past/current dish shift but cannot claim another member's points.
