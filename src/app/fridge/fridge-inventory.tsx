@@ -1,183 +1,184 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import { SupabaseNotConfigured } from "@/components/supabase-not-configured";
+import { useRef, useState, useSyncExternalStore } from "react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import type { FridgeItem, Roommate } from "@/lib/types";
-import { MemberMenu } from "@/components/member-menu";
+import { HOUSE_TIME_ZONE, houseToday } from "@/lib/dish-calendar";
+import { itemsToUseSoon } from "@/lib/fridge-layout";
+import { expiryLabel } from "@/lib/expiry";
+import { HouseNav } from "@/components/house-nav";
+import { HouseArt } from "@/components/house-art";
+import shell from "@/components/house-shell.module.css";
+import { useFridge, type NewFridgeItem } from "./use-fridge";
+import { FridgeScene, type Area, type Compartment } from "./fridge-scene";
+import { ListView } from "./list-view";
+import { ItemSheet } from "./item-sheet";
+import { AddSheet } from "./add-sheet";
+import { ImportSheet } from "./import-sheet";
+import styles from "./fridge.module.css";
+
+function subscribeToClock(onChange: () => void) {
+  const timer = window.setInterval(onChange, 15_000);
+  window.addEventListener("focus", onChange);
+  return () => { window.clearInterval(timer); window.removeEventListener("focus", onChange); };
+}
+const clockNow = () => new Intl.DateTimeFormat("en-CA", { hour: "numeric", minute: "2-digit", timeZone: HOUSE_TIME_ZONE }).format(new Date()).replace(/\s?([ap])\.?m\.?/i, (_, m) => ` ${m.toUpperCase()}M`);
+const serverValue = () => "";
+
+// The fridge/list choice is remembered per phone.
+type View = "fridge" | "list";
+const VIEW_KEY = "albion:fridge-view";
+function subscribeToView(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(VIEW_KEY, onChange);
+  return () => { window.removeEventListener("storage", onChange); window.removeEventListener(VIEW_KEY, onChange); };
+}
+function savedView(): View {
+  try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "fridge"; } catch { return "fridge"; }
+}
+function saveView(view: View) {
+  try { localStorage.setItem(VIEW_KEY, view); } catch { /* private mode: just don't remember */ }
+  window.dispatchEvent(new Event(VIEW_KEY));
+}
+
+type SheetState = { kind: "item"; id: string } | { kind: "add" } | { kind: "import" } | null;
 
 export default function FridgeInventory({ member }: { member: Roommate }) {
-  const supabase = useMemo(() => createClient(), []);
-  const [roommates, setRoommates] = useState<Roommate[]>([]);
-  const [items, setItems] = useState<FridgeItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const fridge = useFridge(member);
+  const today = useSyncExternalStore(subscribeToClock, houseToday, serverValue);
+  const clock = useSyncExternalStore(subscribeToClock, clockNow, serverValue);
+  const view = useSyncExternalStore(subscribeToView, savedView, () => "fridge" as View);
+  const [open, setOpen] = useState<Record<Compartment, boolean>>({ freezer: false, fridge: false, pantry: false });
+  const [expanded, setExpanded] = useState<Partial<Record<Area, boolean>>>({});
+  const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
+  const [dropOrder, setDropOrder] = useState<Map<string, number>>(new Map());
+  const [sheet, setSheet] = useState<SheetState>(null);
+  const [toast, setToast] = useState<{ text: string; batch?: string } | null>(null);
+  const timers = useRef<Record<string, number>>({});
 
-  const [name, setName] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  // eslint-disable-next-line react-hooks/purity -- fixed at mount, not during render
-  const now = useMemo(() => Date.now(), []);
+  const items = fridge.data?.items ?? [];
+  const useSoon = today ? itemsToUseSoon(items, today) : [];
+  const selected = sheet?.kind === "item" ? items.find((item) => item.id === sheet.id) : undefined;
+  const expired = useSoon.filter((item) => item.expires_at! < today);
 
-  async function loadData() {
-    setError(null);
-    const [{ data: roommateData, error: roommateError }, { data: itemData, error: itemError }] =
-      await Promise.all([
-        supabase.from("roommates").select("*").order("name"),
-        supabase
-          .from("fridge_items")
-          .select("*")
-          .is("consumed_at", null)
-          .order("expires_at", { ascending: true, nullsFirst: false }),
-      ]);
-
-    if (roommateError || itemError) {
-      setError(roommateError?.message ?? itemError?.message ?? "Failed to load data");
-    }
-    setRoommates(roommateData ?? []);
-    setItems(itemData ?? []);
-    setLoading(false);
+  function later(key: string, ms: number, run: () => void) {
+    window.clearTimeout(timers.current[key]);
+    timers.current[key] = window.setTimeout(run, ms);
   }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
-    void loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function addItem(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    const { error: insertError } = await supabase.from("fridge_items").insert({
-      name: name.trim(),
-      quantity: quantity.trim() || null,
-      expires_at: expiresAt || null,
-      added_by: member.id,
+  function compartmentOf(item: FridgeItem): Compartment | null {
+    return item.location === "household" ? null : item.location;
+  }
+  function openFor(list: FridgeItem[]) {
+    setOpen((current) => {
+      const next = { ...current };
+      for (const item of list) { const c = compartmentOf(item); if (c) next[c] = true; }
+      return next;
     });
-    if (insertError) {
-      setError(insertError.message);
-      return;
-    }
-    setName("");
-    setQuantity("");
-    setExpiresAt("");
-    loadData();
+  }
+  function showUseSoon() {
+    if (view === "list") return;
+    openFor(useSoon);
+    setHighlighted(new Set(useSoon.map((item) => item.id)));
+    later("highlight", 3600, () => setHighlighted(new Set()));
+  }
+  function showToast(text: string, batch?: string) {
+    setToast({ text, batch });
+    later("toast", batch ? 10_000 : 4000, () => setToast(null));
   }
 
-  async function markConsumed(id: string) {
-    const { error: updateError } = await supabase
-      .from("fridge_items")
-      .update({ consumed_at: new Date().toISOString() })
-      .eq("id", id);
-    if (updateError) {
-      setError(updateError.message);
-      return;
-    }
-    loadData();
+  async function importItems(newItems: NewFridgeItem[]) {
+    const result = await fridge.addItems(newItems);
+    if (!result.ok) return result.message;
+    setSheet(null);
+    openFor(result.items);
+    // Drop them in one after another, fridge first.
+    setDropOrder(new Map(result.items.map((item, i) => [item.id, i])));
+    later("drop", 3000, () => setDropOrder(new Map()));
+    showToast(`Added ${result.items.length} item${result.items.length === 1 ? "" : "s"}`, newItems[0]?.import_batch_id ?? undefined);
+    return null;
+  }
+  async function addOne(item: NewFridgeItem) {
+    const result = await fridge.addItems([item]);
+    if (!result.ok) return result.message;
+    openFor(result.items);
+    showToast(`${item.name} is in the ${item.location === "household" ? "household box" : item.location}`);
+    return null;
+  }
+  async function finish(item: FridgeItem) {
+    setSheet(null);
+    if (await fridge.finishItem(item.id)) showToast(item.location === "household" ? `${item.name}: used up` : `${item.name}: finished. Nice.`);
+  }
+  async function undo(batch: string) {
+    setToast(null);
+    if (await fridge.undoImport(batch)) showToast("Grocery run undone");
   }
 
-  const nameFor = (id: string | null) =>
-    roommates.find((r) => r.id === id)?.name ?? "Unknown";
-
-  function expiryStatus(expiresAt: string | null, now: number) {
-    if (!expiresAt) return null;
-    const days = Math.ceil((new Date(expiresAt).getTime() - now) / (1000 * 60 * 60 * 24));
-    if (days < 0) return { label: "Expired", className: "text-red-600" };
-    if (days === 0) return { label: "Expires today", className: "text-red-600" };
-    if (days <= 2) return { label: `Expires in ${days}d`, className: "text-amber-600" };
-    return { label: `Expires in ${days}d`, className: "text-neutral-500" };
-  }
-
-  if (!isSupabaseConfigured) return <SupabaseNotConfigured />;
+  const headline = !fridge.data ? "Opening the fridge…"
+    : expired.length ? `${expired.length === 1 ? "Something’s" : `${expired.length} things are`} past it.`
+    : useSoon.length ? `${useSoon.length} thing${useSoon.length === 1 ? "" : "s"} to eat soon.`
+    : items.length ? "Everything’s fresh." : "The fridge is bare.";
+  const detail = useSoon.length
+    ? useSoon.slice(0, 4).map((item) => `${item.icon ?? ""} ${item.name} (${expiryLabel(item.expires_at, today, item.expiry_source === "estimated")})`).join(" · ") + (useSoon.length > 4 ? ` · +${useSoon.length - 4} more` : "")
+    : items.length ? "Nothing needs rescuing. Tap a door to look inside." : "Back from the store? Paste the receipt email to stock it.";
 
   return (
-    <main className="mx-auto max-w-2xl p-6 space-y-8">
-      <div className="flex items-center justify-between gap-4"><Link href="/" className="text-sm text-neutral-500 hover:underline">Home</Link><MemberMenu member={member} /></div>
-      <div>
-        <h1 className="text-2xl font-bold">Fridge Management</h1>
-        <p className="text-sm text-neutral-500">
-          Track what&apos;s in the fridge so nothing goes to waste.
-        </p>
-      </div>
+    <MotionConfig reducedMotion="user">
+      <main className={`${shell.page} ${styles.page}`}>
+        <div className={shell.shell} inert={Boolean(sheet)}>
+          <HouseNav member={member} section="fridge" />
 
-      {error && (
-        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          {error}
+          <header className={shell.header}>
+            <div><p className={shell.eyebrow}>KEEP IT FRESH, WASTE LESS</p><h1>The fridge<span>.</span></h1><p className={shell.subtitle}>Stock it after a grocery run. Eat what’s about to turn. Tap a door to look inside.</p></div>
+            <span className={shell.houseTag}><span /> ONE FRIDGE. SIX APPETITES.</span>
+          </header>
+
+          <section className={styles.banner} aria-label="What to eat soon">
+            <div className={styles.bannerIntro}><HouseArt name="fridge" size={84} className={styles.bannerArt} /><div style={{ minWidth: 0 }}><p className={styles.smallLabel}>USE IT UP</p><h2>{headline}</h2><p>{detail}</p></div></div>
+            <div className={styles.bannerActions}>
+              {useSoon.length > 0 && view === "fridge" && <button type="button" className={styles.secondaryButton} onClick={showUseSoon}>Show me</button>}
+              <button type="button" className={styles.secondaryButton} onClick={() => setSheet({ kind: "add" })} disabled={!fridge.data}>＋ Add item</button>
+              <button type="button" className={styles.primaryButton} onClick={() => setSheet({ kind: "import" })} disabled={!fridge.data}>Grocery run</button>
+            </div>
+          </section>
+
+          {!fridge.configured ? <div className={styles.errorBanner} role="status"><strong>Connect the fridge</strong><p>Add your Supabase URL and public key to <code>.env.local</code>, then restart the dev server.</p></div>
+            : fridge.needsMigration ? <div className={styles.errorBanner} role="status"><strong>One quick setup step</strong><p>Run <code>supabase/migrations/0006_virtual_fridge.sql</code> in your project’s Supabase SQL editor to finish setting up the fridge.</p><button type="button" onClick={fridge.retry}>I’ve run it — reconnect</button></div>
+            : fridge.error ? <div className={styles.errorBanner} role="alert"><strong>Something went wrong</strong><p>{fridge.error}</p><button type="button" onClick={fridge.retry}>Try again</button></div> : null}
+
+          <div className={styles.toolbar}>
+            <div><p className={styles.eyebrow}>{items.length} THING{items.length === 1 ? "" : "S"} IN THE HOUSE</p><h2>{view === "fridge" ? "Have a look inside" : "Everything, listed"}</h2></div>
+            <div className={styles.toolbarEnd}>
+              <div className={styles.viewSwitch} role="group" aria-label="View">
+                <button type="button" aria-pressed={view === "fridge"} onClick={() => saveView("fridge")}>Fridge view</button>
+                <button type="button" aria-pressed={view === "list"} onClick={() => saveView("list")}>List view</button>
+              </div>
+              <div className={styles.legend}><span><i className={styles.dotFresh} /> Fresh</span><span><i className={styles.dotSoon} /> Use soon</span><span><i className={styles.dotGone} /> Today / expired</span><span>~ estimated</span></div>
+            </div>
+          </div>
+
+          {view === "fridge"
+            ? <FridgeScene items={items} useSoon={useSoon} today={today} clock={clock} open={open} expanded={expanded} highlighted={highlighted} dropOrder={dropOrder} activity={fridge.activity} nameFor={fridge.nameFor}
+                onToggle={(c) => setOpen((current) => ({ ...current, [c]: !current[c] }))} onExpand={(area) => setExpanded((current) => ({ ...current, [area]: true }))}
+                onSelect={(item) => setSheet({ kind: "item", id: item.id })} onShowUseSoon={showUseSoon} onImport={() => setSheet({ kind: "import" })} onAdd={() => setSheet({ kind: "add" })} />
+            : <ListView items={items} useSoon={useSoon} today={today} nameFor={fridge.nameFor} onSelect={(item) => setSheet({ kind: "item", id: item.id })} onFinish={(item) => void finish(item)} />}
+
+          <footer className={shell.footer}><span>Good housemates finish the leftovers.</span><span>Best-before dates marked ~ are rough guesses · House time · Toronto</span></footer>
         </div>
-      )}
 
-      <form onSubmit={addItem} className="space-y-3 rounded-lg border p-4">
-        <h2 className="font-semibold">Add an item</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input
-            className="rounded-md border p-2 text-sm"
-            placeholder="Item name (e.g. Oat milk)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <input
-            className="rounded-md border p-2 text-sm"
-            placeholder="Quantity (e.g. 1 carton)"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-          <input
-            type="date"
-            className="rounded-md border p-2 text-sm"
-            value={expiresAt}
-            onChange={(e) => setExpiresAt(e.target.value)}
-          />
-          <p className="self-center text-xs text-neutral-500">Adding as {member.name}</p>
+        <AnimatePresence>
+          {selected && fridge.data && <ItemSheet key={selected.id} item={selected} today={today} defaults={fridge.data.defaults} addedBy={fridge.nameFor(selected.added_by)} onClose={() => setSheet(null)} onSave={(changes) => fridge.updateItem(selected.id, changes)} onFinish={() => void finish(selected)} />}
+          {sheet?.kind === "add" && fridge.data && <AddSheet key="add" today={today} defaults={fridge.data.defaults} memberName={member.name} onClose={() => setSheet(null)} onAdd={addOne} />}
+          {sheet?.kind === "import" && fridge.data && <ImportSheet key="import" today={today} defaults={fridge.data.defaults} memberName={member.name} onClose={() => setSheet(null)} onSave={importItems} />}
+        </AnimatePresence>
+
+        <div className={styles.toastWrap} aria-live="polite">
+          <AnimatePresence>
+            {toast && <motion.div key={toast.text} className={styles.toast} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
+              <span>{toast.text}</span>{toast.batch && <button type="button" onClick={() => void undo(toast.batch!)}>Undo</button>}
+            </motion.div>}
+          </AnimatePresence>
         </div>
-        <button
-          type="submit"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-        >
-          Add to fridge
-        </button>
-      </form>
-
-      <section>
-        <h2 className="mb-2 text-lg font-semibold">In the fridge</h2>
-        {loading ? (
-          <p className="text-sm text-neutral-500">Loading…</p>
-        ) : (
-          <ul className="divide-y rounded-lg border">
-            {items.length === 0 && (
-              <li className="p-3 text-sm text-neutral-500">
-                Fridge is empty (or everyone&apos;s lying).
-              </li>
-            )}
-            {items.map((item) => {
-              const status = expiryStatus(item.expires_at, now);
-              return (
-                <li key={item.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-                  <div>
-                    <div className="font-medium">
-                      {item.name}
-                      {item.quantity && (
-                        <span className="ml-2 text-neutral-500">{item.quantity}</span>
-                      )}
-                    </div>
-                    <div className="flex gap-2 text-xs text-neutral-500">
-                      <span>Added by {nameFor(item.added_by)}</span>
-                      {status && <span className={status.className}>{status.label}</span>}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => markConsumed(item.id)}
-                    className="rounded-md border px-3 py-1 text-xs hover:bg-neutral-50"
-                  >
-                    Finished
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-    </main>
+      </main>
+    </MotionConfig>
   );
 }
