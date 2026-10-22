@@ -20,15 +20,19 @@ of a clean sink** and decides whether the sink actually counts as clean.
   tell**. The verdict comes with a short note for each item on the checklist
   (basin, counter, dishes pushed to the side, food scraps, standing water,
   drying rack and so on) and a confidence level.
-- **Notes you can act on:** a fail tells you *what* to fix ("Two mugs and a
-  pot on the counter left of the sink"), so you can fix it, take a new photo
-  and pass on the second try.
-- **People stay in charge:** if the model is wrong, you can **count it
-  anyway** and give a reason. The override and the AI's notes are both shown
-  to the house. An outage never blocks a check-in.
+- **A fail never blocks a check-in.** The check-in always counts. A fail
+  puts a **warning badge** on the day ("Not clean · take a look") with the
+  AI's notes ("Two mugs and a pot on the counter left of the sink").
+- **The house takes a look:** a failed day prompts the other housemates to
+  look at the photo, on `/dishes` and on the home page. The first one to
+  respond either clears it ("Looks fine to me") or confirms it ("Yep, not
+  clean"). The person who washed can also fix it and add a new photo, which
+  is checked again.
+- **An outage never matters:** if the AI service is down, the day just says
+  "Not checked".
 - **Rolled out gently:** first the check runs silently (shadow mode), then it
-  shows its verdict as a badge (advisory), and only then, if the house wants,
-  does a pass become needed to turn the day green (soft gate).
+  shows its verdict to the whole house (the final mode). There's no mode
+  where a pass is required.
 
 ## 2. Decisions so far
 
@@ -41,10 +45,10 @@ of a clean sink** and decides whether the sink actually counts as clean.
 | Output format | Structured outputs (a JSON schema via `output_config.format`). No parsing free text |
 | Where the call runs | A Next.js **Route Handler** on the Node runtime, `POST /api/sink-check`. The Anthropic key and the Supabase service-role key exist only on the server |
 | Who records the verdict | Only the server, through a `security definer` function that only `service_role` may run. Members can't write or edit verdicts |
-| Tie-in with check-ins | Phased (§16): **shadow → advisory → soft gate**. The house chooses the mode with one setting, `house_settings.sink_check_mode` |
-| On failure | Retake (with tips), or **count it anyway** with a reason. Outages and timeouts **fail open**: the check-in still counts and is marked "not checked" |
-| Disputes | No voting. The house retired voting in `0005`. Overrides are open for everyone to see instead. A "flag this day" option is an open question (§18) |
-| Photos | Stay in the existing private `dish-photos` bucket. Reference photos go in a new private `sink-references` bucket. Failed-attempt photos are visible only to the person who took them |
+| Tie-in with check-ins | **Confirmed: warning badge, never a block.** Phased (§16): **shadow → advisory**. The house chooses the mode with one setting, `house_settings.sink_check_mode` |
+| On failure | The check-in still counts. The day gets a warning badge and the other housemates are asked to take a look (§7.3). The washer can optionally fix it and add a new photo. Outages and timeouts are marked "not checked" |
+| Disputes | No vote. The first housemate who looks at a failed day clears or confirms it, and that's shown to everyone |
+| Photos | Stay in the existing private `dish-photos` bucket. Reference photos go in a new private `sink-references` bucket. Since a check-in always counts, the checked photo is the day's photo and the house can see it, as today |
 
 Out of scope for now: video, live camera checks, checking other rooms (stove,
 bathroom), push or email notifications, judging *who* made the mess,
@@ -298,9 +302,10 @@ summary is cut to 280. A response that fails this check is treated as an
 | Mode | What a check-in does | Who sees the verdict |
 | --- | --- | --- |
 | `off` | Today's behaviour, unchanged | Nobody |
-| `shadow` | Check-in records straight away (existing RPC). Then the client calls `/api/sink-check` in the background | Only the submitter and the admin, on the completed panel, marked "Trial" |
-| `advisory` | Same as shadow | The whole house: a badge on the completed day |
-| `gate` | The check-in counts **only** on a pass, an override, or a fail-open error | The whole house |
+| `shadow` | Check-in records straight away (existing RPC). Then the client calls `/api/sink-check` in the background | Only the submitter, on the completed panel, marked "Trial" |
+| `advisory` | Same as shadow | The whole house: a badge on the completed day, and a "take a look" prompt on a fail (§7.3) |
+
+There is deliberately no mode where a check-in needs a pass to count.
 
 ### 7.2 Shadow and advisory
 
@@ -309,48 +314,38 @@ summary is cut to 280. A response that fails this check is treated as an
 - The day turns green immediately, exactly as it does now. The badge fills in
   a few seconds later ("Sink check: Clean ✓", "Not clean · see notes",
   "Couldn't tell").
-- A fail in advisory mode doesn't take away points. The submitter is offered
-  **"Fix it and add a new photo"**. A passing retake *replaces* the day's
-  `sink_check_id` (the photo on the completion stays the first one, so
-  nothing already recorded changes). Whether advisory retakes are worth having
-  at all is an open question.
+- A fail doesn't take away points (open question §18). The submitter is
+  offered **"Fix it and add a new photo"**. A passing retake *replaces* the
+  day's `sink_check_id` and clears the warning (the photo on the completion
+  stays the first one, so nothing already recorded changes).
 
-### 7.3 Gate
+### 7.3 "Take a look": what happens on a fail
 
-- The client still uploads first. Then, instead of calling
-  `submit_dish_check_in`, it calls `/api/sink-check` with `mode: "gate"`.
-- **Pass:** the route calls `record_sink_check` with `complete = true`. That
-  inserts the `dish_completions` row in the same transaction, with
-  `sink_check_id` set. The day turns green.
-- **Fail / unsure:** a `sink_checks` row is stored. No completion. The
-  result panel shows the notes and offers **Retake** or **Count it anyway**.
-- **Count it anyway:** `override_sink_check(check_id, reason)` (an
-  authenticated member, only for their own check, same day rules as the RPC).
-  It inserts the completion with that photo and stamps the override.
-  `reason` is required for a `fail` (at least 5 characters) and optional for
-  `unsure`.
-- **Error / timeout / refusal:** fail open. The route records an `error` row
-  and completes the day anyway, with the badge "Not checked (sink check was
-  unavailable)". Dish duty must never depend on an outside API being up.
-- **Closing the bypass:** while the mode is `gate`, members must not be able
-  to call `submit_dish_check_in` directly. Its body gains a first line that
-  raises `'Sink check required'` (errcode `42501`) when
-  `house_settings.sink_check_mode = 'gate'`, so switching modes needs no
-  re-grant.
+- The day's badge turns amber: **"Not clean · take a look"**.
+- Every other housemate sees a **"Take a look"** card at the top of
+  `/dishes`, and a line on the home page's Dish duty card, until someone
+  responds. The card shows the photo, the reference side by side, and the
+  AI's notes.
+- Two buttons: **"Looks fine to me"** (the badge becomes "Cleared by Alex")
+  and **"Yep, not clean"** (the badge becomes "Not clean · confirmed by
+  Alex"). The first response settles it. It's a quick second opinion, not a
+  vote.
+- The person who washed can't respond to their own day, but can fix the sink
+  and add a new photo at any time that day. A pass clears the warning.
+- `unsure` and `error` days get a neutral badge ("Couldn't tell" / "Not
+  checked") and **no** prompt, so housemates aren't nagged about bad photos.
+- If nobody responds in 24 hours, the prompt disappears and the badge stays
+  as the AI left it.
+- In-app only, like the rest of the site. No push or email.
 
 ### 7.4 Timing and points
 
 - Points stay as they are: 3 for on time, 1 for late, worked out from
   `dish_completions.created_at`.
-- **A retake must not make an on-time wash late.** Following the old
-  `vote_dish_review` rule, a completion from a pass or an override after
-  retakes uses the `created_at` of the **first** sink check for that member
-  and day, *if* that first check was within the last **60 minutes**. That
-  covers "submitted at 11:55 pm, fixed the pot, passed at 12:04 am". The
-  60-minute limit stops someone submitting a messy photo at 6 pm and cleaning
-  up the next day.
-- Whether an overridden fail should earn full points is an open question. The
-  default plan is full points, with the override shown publicly.
+- A retake never changes the day's timing: the completion was recorded on
+  the first photo, and a retake only updates the badge.
+- Whether a confirmed "not clean" day should lose a point is an open
+  question. The default plan is full points, with the badge shown publicly.
 
 ### 7.5 Retake guidance
 
@@ -362,9 +357,9 @@ line:
 - `too_dark` → "Turn on the kitchen light and try again."
 - `basin_empty` fail → the model's note, e.g. "A pot and two forks in the left
   basin."
-- After **2** `unsure` results in a row for the same day, the panel leads with
-  **Count it anyway** (no reason needed), because the problem is probably the
-  photo or the model, not the sink.
+- After **2** `unsure` results in a row for the same day, the panel stops
+  suggesting retakes, because the problem is probably the photo or the
+  model, not the sink. The check-in has already counted.
 
 ## 8. Data model (migration `0008_sink_check.sql`)
 
@@ -372,10 +367,10 @@ The next free number is `0008`. Sketch only. Final names and grants are set
 when it's built, with PGlite tests like `tests/dish-check-ins.test.mjs`.
 
 ```sql
--- House-wide settings (admin sets them from the SQL editor, like set_house_code).
+-- House-wide settings (set with a one-line update in the SQL editor, like set_house_code).
 alter table public.house_settings
   add column sink_check_mode text not null default 'off'
-    check (sink_check_mode in ('off', 'shadow', 'advisory', 'gate')),
+    check (sink_check_mode in ('off', 'shadow', 'advisory')),
   add column sink_check_fail_confidence text not null default 'medium'
     check (sink_check_fail_confidence in ('low', 'medium', 'high')),
   add column sink_check_required text[] not null
@@ -415,8 +410,9 @@ create table public.sink_checks (
   latency_ms int,
   error_code text,                             -- timeout | refusal | schema | api_5xx | …
   created_at timestamptz not null default now(),
-  overridden_at timestamptz,
-  override_reason text check (char_length(override_reason) <= 200)
+  reviewed_by uuid references public.roommates(id),  -- the housemate who took a look (§7.3)
+  review text check (review in ('looks_fine', 'not_clean')),
+  reviewed_at timestamptz
 );
 create index sink_checks_day_idx on public.sink_checks(performed_on, roommate_id, created_at);
 create index sink_checks_sha_idx on public.sink_checks(photo_sha256);
@@ -429,8 +425,9 @@ alter table public.dish_completions
 
 | Function | Who can run it | What it does |
 | --- | --- | --- |
-| `record_sink_check(...)` | `service_role` only | Inserts a `sink_checks` row. If asked to, and the verdict allows it (pass, or error in gate mode), also inserts the `dish_completions` row with the timing rule from §7.4. Takes the same advisory lock as the check-in RPC so two submissions for one day can't both complete |
-| `override_sink_check(p_check_id, p_reason)` | `authenticated` | Own check only, verdict `fail`/`unsure`, day not already completed. Stamps the override and inserts the completion |
+| `record_sink_check(...)` | `service_role` only | Inserts a `sink_checks` row for a day that's already completed, and points `dish_completions.sink_check_id` at it (a passing retake replaces a fail). It never creates or removes a completion |
+| `review_sink_check(p_check_id, p_review)` | `authenticated` | "Take a look" (§7.3). Only on a `fail` that's the day's current check, not your own day, within 24 h, and only once: the first response settles it |
+| `pending_sink_reviews()` | `authenticated` | The failed days waiting for a look, for the `/dishes` card and the home page line |
 | `add_sink_reference(p_photo_path, p_caption)` / `retire_sink_reference(p_id)` | `authenticated` | Checks the upload exists and the 3-active limit, records who did it |
 | `set_sink_standard(p_text)` | `authenticated` | Updates the text with who and when |
 | `sink_check_settings()` | `authenticated` | Returns the mode and the standard text, so `/dishes` can render without being able to read the whole `house_settings` row |
@@ -440,7 +437,7 @@ alter table public.dish_completions
 - `sink_reference_photos`: every house member can `select`. No direct writes.
 - `sink_checks`: a member can `select` **their own** rows, plus any row
   referenced by a `dish_completions.sink_check_id` (the check that counted,
-  including overrides). That way the house sees the verdict for every
+  including fails). That way the house sees the verdict for every
   completed day, but a member's failed attempts stay private to them. No
   direct writes.
 - Storage: failed-attempt photos stay in `dish-photos` and aren't attached to
@@ -506,8 +503,8 @@ before building.
 | A person in the frame | Told to ignore them. Photos are normalised and EXIF/GPS is stripped before sending |
 | The model declines (`stop_reason: "refusal"`) | Server-side fallback first. If it still refuses, `error` → fail open |
 | Timeout, 429, 5xx, schema mismatch | `error` → fail open. Logged with `error_code` |
-| Missing API key, or monthly budget reached | No model call. `error` → fail open, and an admin banner on `/dishes` |
-| Too many attempts (more than `SINK_CHECK_DAILY_LIMIT`) | 429 from the route: "That's a lot of retakes today. Count it anyway, or try tomorrow." The **Count it anyway** button stays available |
+| Missing API key, or monthly budget reached | No model call. `error` ("Not checked"), and a banner on `/dishes` |
+| Too many attempts (more than `SINK_CHECK_DAILY_LIMIT`) | 429 from the route: "That's a lot of retakes today." The check-in has already counted, so nothing is lost |
 | Two people submit for the same day at once | The advisory lock in `record_sink_check` (same key as the check-in RPC). The second gets the existing "Someone already checked in for this day" message |
 | A reference is retired between upload and check | The route reads the references at step 6. Each check stores the `reference_ids` it actually used |
 | Network drops after the model answered | The route records before it responds, so the client reloads the day (the same recovery path `saveDishCheckIn` already uses) and finds the completion or the check |
@@ -523,14 +520,15 @@ before building.
   caption. Under Anthropic's commercial API terms, inputs aren't used for
   training by default. Check the current retention terms when this is built
   and link them on the reference page.
-- **Who sees what:** your own failed attempts are visible only to you. The
-  verdict and notes for each **completed** day (pass, override or error) are
-  visible to the house. Overrides show the reason and the AI notes together.
+- **Who sees what:** the day's photo, verdict and notes are visible to the
+  house, as the photo already is today. That's what lets housemates take a
+  look at a fail. Photos from retakes that didn't replace the day's check
+  stay visible only to the person who took them.
 - **Retention:**
   - `sink_checks` rows are small and kept indefinitely, as check-in history
     is.
-  - Photos from failed or unsure attempts that never became a completion get
-    deleted after **30 days** by a scheduled cleanup (`pg_cron` or an admin
+  - Retake photos that never became the day's check get deleted after
+    **30 days** by a scheduled cleanup (`pg_cron` or an admin
     script). The row stays, with `photo_path` kept for the record.
   - Retired reference photos are kept while any check points to them.
 - **Shown in the app:** the existing note "Photos are saved privately with
@@ -561,25 +559,33 @@ All on `/dishes`, inside the existing check-in section in `dish-calendar.tsx`
 **Before submitting**
 - A small reference thumbnail next to the photo drop: "Match this view."
 - The button stages grow from "Uploading your photo…" → "Saving your
-  check-in…" to "Uploading your photo…" → **"Checking the sink…"** (gate) or
-  stay as they are (shadow and advisory).
+  check-in…" stay as they are. The check runs after the day has turned
+  green.
 
-**Result panel** (gate, or after the check finishes in advisory)
+**Result panel** (shown to the washer after the check finishes, in advisory)
 
 | State | Look | Content | Actions |
 | --- | --- | --- | --- |
 | Checking | Sink art with a slow shimmer (none with reduced motion) | "Comparing with the clean-sink photo…" | — |
 | Pass | Green, `clean-sink` art | "Sink check: clean." Collapsed "See the notes" | — (the day turns green) |
-| Fail | Amber/red border, list with ✗ beside each failed item | The model's note for each failed item. "Also noticed" for advisory items. Your photo and the reference side by side | **Retake photo** (main) · **Count it anyway…** (secondary, asks for a reason) |
-| Unsure | Neutral, `?` icon | The specific tip (§7.5) | **Retake photo** · **Count it anyway** |
-| Error | Neutral, info icon | "We couldn't check this photo, so it counted anyway." | — |
-| Rate-limited | Neutral | "That's a lot of retakes today." | **Count it anyway** |
+| Fail | Amber border, list with ✗ beside each failed item | "Your check-in counted. The sink check spotted a few things:" plus the model's note for each failed item. Your photo and the reference side by side. "Housemates will be asked to take a look." | **Fix it and add a new photo** (optional) |
+| Unsure | Neutral, `?` icon | The specific tip (§7.5) | **Add a clearer photo** (optional) |
+| Error | Neutral, info icon | "We couldn't check this photo. Your check-in still counted." | — |
+| Rate-limited | Neutral | "That's a lot of retakes today." | — |
 
 **Completed day panel** (anyone viewing that day)
-- Under `DishPhoto`: a badge (**Clean ✓**, **Counted anyway**, **Not
-  checked**, or in advisory **Not clean**), plus a "Why?" disclosure with each
+- Under `DishPhoto`: a badge (**Clean ✓**, **Not clean · take a look**,
+  **Cleared by {name}**, **Not clean · confirmed by {name}**, **Couldn't
+  tell**, or **Not checked**), plus a "Why?" disclosure with each
   item's status, note and confidence (shown as words, e.g. "fairly sure").
-- Overrides show "{name} counted this anyway: '{reason}'".
+- On a pending fail, other housemates see **Looks fine to me** / **Yep, not
+  clean** right there in the panel.
+
+**"Take a look" card** (other housemates, top of `/dishes`, plus a line on
+the home page's Dish duty card)
+- "Tuesday's sink check flagged a few things. Take a look?" with the photo,
+  the reference, the notes and the two buttons. Disappears once someone
+  responds or after 24 h.
 
 **Calendar day cells**
 - A small check-mark or flag in the existing status line. Never colour alone
@@ -599,11 +605,11 @@ All on `/dishes`, inside the existing check-in section in `dish-calendar.tsx`
 Read `node_modules/next/dist/docs/` (Route Handlers, segment config,
 `server-only`) before writing code, as AGENTS.md says.
 
-1. **Migration `0008_sink_check.sql`** + types + PGlite tests: RLS (own
-   failed checks hidden from others, completed-day checks visible), only
-   `service_role` can record, override rules, the gate-mode block on
-   `submit_dish_check_in`, the 60-minute timing rule, and the 3-reference
-   limit.
+1. **Migration `0008_sink_check.sql`** + types + PGlite tests: RLS (retake
+   checks hidden from others, the day's check visible), only `service_role`
+   can record, a check never creates or removes a completion, the "take a
+   look" rules (not your own day, first response wins, 24 h), and the
+   3-reference limit.
 2. **Pure logic + tests:** `src/lib/sink-check/verdict.ts` (§6.3),
    `schema.ts` (JSON schema and post-parse checks), `prompt.ts` (system
    prompt builder, house-standard escaping), `retake-tips.ts` (§7.5).
@@ -616,10 +622,10 @@ Read `node_modules/next/dist/docs/` (Route Handlers, segment config,
 5. **Eval script + labelled set** (§13). Choose the model and effort level.
 6. **Shadow mode** in `dish-calendar.tsx` (background call, "Trial" badge for
    the submitter only).
-7. **Advisory mode:** the house-visible badge and the "Why?" disclosure.
-8. **Gate mode:** the result panel, retake, override, fail-open, and README
+7. **Advisory mode:** the house-visible badge, the "Why?" disclosure, the
+   "Take a look" card and home page line, the optional retake, and README
    updates (new env vars, migration `0008`, feature description).
-9. **Retention cleanup** for old failed-attempt photos.
+8. **Retention cleanup** for old retake photos.
 
 ## 16. Phased rollout
 
@@ -627,8 +633,11 @@ Read `node_modules/next/dist/docs/` (Route Handlers, segment config,
 | --- | --- | --- | --- |
 | 0 | `off` | ~1 week | References uploaded, house standard written, eval set labelled, eval bar met (§13) |
 | 1 | `shadow` | ~2 weeks | In real use, verdicts agree with what the submitter says at least 90% of the time (a "Was this right?" 👍/👎 on the Trial badge), and p95 latency is under 20 s |
-| 2 | `advisory` | ~2–4 weeks | The house agrees the notes are fair. Fewer than 1 complaint a week |
-| 3 | `gate` | ongoing | Roll back to `advisory` with one SQL update if the override rate goes above 25% |
+| 2 | `advisory` | ongoing | The house agrees the notes are fair. Fewer than 1 complaint a week |
+
+Advisory is the final mode. If housemates clear more than 25% of fails with
+"Looks fine to me", the check is too strict: tune the prompt or the
+confidence threshold, or go back to `shadow` with one SQL update.
 
 ## 17. Success metrics
 
@@ -636,8 +645,8 @@ Read `node_modules/next/dist/docs/` (Route Handlers, segment config,
   at 90% or more. False-fail rate 5% or less.
 - **Behaviour:** the share of days that pass on the **first** photo goes up
   over the first month (the point is cleaner sinks, not more retakes).
-- **Friction:** median retakes per completed day at most 0.3. Override rate
-  under 15%. `unsure` rate under 15%.
+- **Friction:** median retakes per completed day at most 0.3. Fails cleared
+  with "Looks fine to me" under 15%. `unsure` rate under 15%.
 - **Reliability:** `error` rate under 2%. No day ever blocked by an outage
   (true by design, and checked in the tests).
 - **Speed and cost:** p95 under 20 s. Monthly spend within budget.
@@ -645,21 +654,22 @@ Read `node_modules/next/dist/docs/` (Route Handlers, segment config,
 ## 18. Open questions
 
 - **Who can change the standard?** Any member (with the visible history in
-  §5), or only the admin, or a new reference needs a second housemate to
+  §5), or only Jia Yi, or a new reference needs a second housemate to
   confirm? The draft plan is any member, with history.
-- **Gate at all?** Is advisory enough social pressure, or does the house want
-  the soft gate?
-- **Points for an override:** full points, 1 point, or full points but the
-  override is shown on the leaderboard?
+- **Points for a confirmed "not clean":** keep full points (the draft
+  plan, with the badge shown publicly), drop to 1 point, or 0?
+- **Supabase secret key:** recording verdicts so members can't fake them
+  needs Supabase's secret (service-role) key on the website's server. It's
+  under Project Settings → API keys in the Supabase dashboard. If you'd
+  rather not handle it, the check can run as a Supabase Edge Function
+  instead, which gets that key automatically.
 - **Live camera only?** Should the check-in input use `capture="environment"`
   and refuse library photos, to stop old-photo reuse? That's less convenient,
   and some browsers ignore it anyway.
 - **Flagging a pass:** if a housemate walks in and the sink is clearly dirty
   even though the check passed, should they be able to flag that day (no
   voting, just a visible flag)? It's not in Phase 1.
-- **Should failed attempts ever be visible to the house?** The draft keeps
-  them private unless they're overridden.
-- **Retention period** for failed-attempt photos: 30 days, or delete straight
+- **Retention period** for retake photos that didn't replace the day's check: 30 days, or delete straight
   away once the day is completed?
 - **Sunday (shared day):** same rules, or more lenient?
 - **Model choice after the eval:** stay on Opus for accuracy (about $2–3 a
