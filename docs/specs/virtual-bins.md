@@ -12,8 +12,11 @@ Status: **proposed** (nothing built yet) · Owner: Jia Yi · Last updated: 2026-
 Add a **virtual garbage can and a virtual compost bin** that show roughly how
 full the real ones are, and that remind the house when one needs to go out:
 
-- **Two little illustrated bins:** a new `/bins` page shows a garbage can and a
-  compost caddy, in the same clay style as the fridge. Each one has a fill level
+- **Part of the house website:** a new `/bins` page next to Dishes and the
+  Fridge, with the same login, nav and home-page card as the rest of the
+  site. Not a separate app.
+- **Two little illustrated bins:** the page shows a garbage can and a
+  compost caddy, in the same clay style and layout as the virtual fridge. Each one has a fill level
   that rises and falls with a soft animation. Recycling can be added later as a
   third bin, with no schema changes.
 - **A nightly photo:** whoever did the dishes tonight also snaps a photo of each
@@ -25,10 +28,11 @@ full the real ones are, and that remind the house when one needs to go out:
   close". Anyone can correct the number with a slider.
 - **It fills up by itself:** between photos, the level creeps up at the bin's
   usual rate, so the picture is still roughly right on a night nobody checks.
-- **Reminders:** when a bin is (or is about to be) full, everyone sees a banner
-  in the app and gets a web push notification that names who's on duty tonight.
-  If it's still full later, the reminder goes out again, but never during quiet
-  hours.
+- **Reminders:** when a bin is (or is about to be) full, everyone sees a
+  banner on the home page, `/bins` and `/dishes` that names who's on duty
+  tonight, and it gets more urgent the longer the bin stays full. v1 is
+  in-app only, like the rest of the site. Phone notifications come later
+  (phase 4), once we know where the website is hosted.
 - **Emptying:** one tap on "Emptied it" resets the bin to zero, and it counts as
   a takeout on the garbage-takeout tally.
 
@@ -44,9 +48,9 @@ full the real ones are, and that remind the house when one needs to go out:
 | Output | Structured JSON (`output_config.format` with a JSON schema): fill %, confidence, flags, a short note (§6) |
 | Calibration | One "empty" and one "full" reference photo per bin, taken once at setup and sent with every estimate (§6) |
 | Between photos | Straight-line extrapolation from the bin's recent fill rate, with an uncertainty band that widens over time (§7) |
-| Reminder channel (v1) | **Web push** (§8), plus an in-app banner that ships anyway as the status display. Email is not in v1 |
-| Scheduler | Supabase `pg_cron` + `pg_net` calls a protected Next.js Route Handler every 30 minutes (§8). Needed for no-photo nudges, threshold crossings while nobody has the app open, escalation, and photo cleanup |
-| Quiet hours | 23:00–08:00 Toronto time (`HOUSE_TIME_ZONE`). Pushes due during quiet hours go out at 08:00 |
+| Reminder channel (v1) | **In-app only**: a banner on the home page, `/bins` and `/dishes`, the same approach as the fridge. Web push is phase 4 (§8). Email is not planned |
+| Scheduler | **None in v1.** Levels, reminder stages, estimate retries and photo cleanup are all worked out when someone loads a page, like the fridge and dish calendar. A scheduler arrives with push in phase 4 (§8) |
+| Quiet hours | Phase 4 only (push): 23:00–08:00 Eastern time (`HOUSE_TIME_ZONE`). In-app banners don't need them |
 | Photo retention | Bin photos are deleted after 14 days. Calibration photos stay until they're replaced. The numbers are kept (§12) |
 | Sync | Supabase Realtime on `bin_readings` and `bin_emptyings`, like `fridge_items` |
 
@@ -154,9 +158,10 @@ The same "Nightly bin check" flow is also on `/bins`, for anyone, at any time.
 
 ### If no photo comes in
 
-- **22:00:** if tonight has no photo reading for a bin and no emptying since
-  17:00, the cleaner gets one push: "Snap the bins before bed? 📷" (§8). On a
-  shared Sunday, nobody gets it. The Sunday estimate just extrapolates.
+- **From 21:00:** if tonight has no photo reading for a bin and no emptying
+  since 17:00, the cleaner sees a card on the home page and `/dishes`: "Snap
+  the bins before bed? 📷". On a shared Sunday, nobody gets it. The Sunday
+  estimate just extrapolates.
 - **Nothing happens after that.** There's no nagging during quiet hours and no
   penalty in v1.
 - The level keeps extrapolating (§7). The bin's label changes from "~62%" to
@@ -190,8 +195,8 @@ The same "Nightly bin check" flow is also on `/bins`, for anyone, at any time.
      can still set a manual level
 4. Realtime pushes the new reading to every open `/bins` and check-in card.
 
-If the call fails or times out, the row stays `pending` and the cron job (§8)
-retries it up to 3 times. The UI shows "Couldn't read that one. Set it by hand?"
+If the call fails or times out, the row stays `pending` and is retried (up to
+3 times) the next time someone opens `/bins`. The UI shows "Couldn't read that one. Set it by hand?"
 with the slider straight away, so nobody is stuck waiting.
 
 ### Model and config
@@ -345,20 +350,24 @@ a week (§15).
 | **Web push** | **Yes** | Service worker + VAPID keys + `push_subscriptions` table + the `web-push` library on the server | iOS needs the app **added to the home screen** (iOS 16.4+). Android/desktop work in the browser |
 | Email | Yes | An email provider (e.g. Resend) and a verified domain. Supabase's built-in SMTP is for auth only | Easy to ignore, and too slow for "it's overflowing" |
 
-**Recommendation for v1: web push.** "It'll remind everyone" can't work
-in-app only, because the problem is exactly that nobody opens the app when the
-bin is full. Push is the only channel that's immediate and free. The
-"add to home screen" step on iPhone is a one-time setup, and the
-`/bins` page walks people through it with a "Turn on bin reminders" card. Email
-stays as a fallback in phase 4 for anyone who can't or won't enable push.
+**v1: in-app banners**, the same as the rest of the website. Everyone already
+opens the home page for dishes, so the banner is seen most days, and it needs
+no hosting decisions, keys or scheduler.
 
-The work this needs is shared and reusable by the tally spec: a web app
+**Phase 4: web push**, if in-app turns out not to be enough (the bin sits
+full because nobody opened the site). Push is the only channel that's
+immediate and free. The "add to home screen" step on iPhone is a one-time
+setup, and the `/bins` page would walk people through it with a "Turn on bin
+reminders" card. It needs the website on a stable HTTPS address, which is
+why it waits until hosting is settled.
+
+The push work is shared and reusable by the tally spec: a web app
 manifest and a service worker (see the PWA guide in
 `node_modules/next/dist/docs/` before building), a `push_subscriptions` table,
 and server-side sending with `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` /
 `VAPID_SUBJECT`.
 
-### The scheduler
+### The scheduler (phase 4, with push)
 
 - Route Handler `src/app/api/bins/tick/route.ts`, `POST` only. It needs the
   header `Authorization: Bearer ${BINS_CRON_SECRET}` and uses a server-only
@@ -369,16 +378,19 @@ and server-side sending with `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` /
   the app ends up on Vercel, Vercel Cron can call the same route instead.
 - Each tick: retries `pending` estimates, computes `currentLevel` for each bin,
   works out which reminders are due (below), sends pushes, records them in
-  `bin_reminders`, sends the 22:00 photo nudge, and deletes expired photos
+  `bin_reminders`, sends the photo nudge, and deletes expired photos
   (§12).
 - It's idempotent: `bin_reminders` has a unique key on
   `(bin_id, cycle_anchor, stage)`, so a double tick can't double-send.
 
 ### Who gets what, and when
 
-| Stage | When | Push goes to | Text (garbage example) |
+In v1 each stage changes the **banner** (its text and colour) for the people
+listed. In phase 4 the same stages also send a push.
+
+| Stage | When | Shown to (v1) / pushed to (phase 4) | Text (garbage example) |
 | --- | --- | --- | --- |
-| 0. Photo nudge | 22:00, no bin check tonight | Tonight's cleaner (nobody on Sunday) | "Snap the bins before bed? 📷" |
+| 0. Photo nudge | From 21:00, no bin check tonight | Tonight's cleaner (nobody on Sunday) | "Snap the bins before bed? 📷" |
 | 1. Full | The bin first enters **Take it out** this cycle | **Everyone** | "🗑️ The garbage is full. Kevin's on tonight, or grab it if you're passing." |
 | 2. Still full | 12 waking hours after stage 1, not emptied | Everyone | "🗑️ Garbage is still full (since last night)." |
 | 3. Overflowing | `overflowing` reading, or 24 waking hours after stage 1 | Everyone | "🦝 The garbage is overflowing. Whoever's home, please." |
@@ -386,10 +398,10 @@ and server-side sending with `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` /
 - "Everyone" is what was asked for. Naming one person (the cleaner) keeps it
   from being nobody's job. Whether stage 1 should go only to the cleaner is an
   open question (§17).
-- **Caps:** at most one push per bin per person per 6 hours. Garbage and
+- **Caps (phase 4):** at most one push per bin per person per 6 hours. Garbage and
   compost reminders due within the same tick are merged into one push
   ("Garbage and compost are both full").
-- **Quiet hours** 23:00–08:00: nothing is sent. Due pushes wait until 08:00 and
+- **Quiet hours (phase 4)** 23:00–08:00: nothing is sent. Due pushes wait until 08:00 and
   are re-checked first, so if someone emptied the bin at 01:00, nothing goes
   out.
 - **The in-app banner** shows on the home page, `/bins` and `/dishes`
@@ -564,7 +576,7 @@ create table public.bin_reminders (
   unique (bin_id, cycle_anchor, stage)
 );
 
--- Shared with any future push feature (the tally, the fridge later).
+-- Phase 4 only (push). Shared with any future push feature (the tally, the fridge later).
 create table public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
   roommate_id uuid not null references public.roommates(id),
@@ -584,7 +596,7 @@ insert into public.bins (kind, name, sort, max_days, default_rate_per_day) value
 
 - **Storage:** a private `bin-photos` bucket (20 MB, the same MIME list as
   `dish-photos`). Members can read. A member can upload only under their own
-  `roommate_id/` folder. Deleting is the cron job's job.
+  `roommate_id/` folder. Old photos are deleted by the page-load cleanup (§12).
 - **RPCs** (`security definer`, `set search_path = ''`, gated on
   `house_member_id()`, following `submit_dish_check_in`):
   - `submit_bin_photo(p_bin_id, p_photo_path) → bin_readings`: checks
@@ -605,9 +617,8 @@ insert into public.bins (kind, name, sort, max_days, default_rate_per_day) value
   For `push_subscriptions`, a member can see, add and delete only their own
   rows.
 - **Realtime:** add `bin_readings` and `bin_emptyings` to `supabase_realtime`.
-- **Cron:** `pg_cron` job `bins-tick` every 30 min → `net.http_post` to
-  `${APP_URL}/api/bins/tick`. It's created disabled. The README gives the line
-  to turn it on.
+- **Cron (phase 4 only):** `pg_cron` job `bins-tick` every 30 min →
+  `net.http_post` to `${APP_URL}/api/bins/tick`, added with push.
 - **Types** (`src/lib/types.ts`): `BinKind`, `Bin`, `BinReading`,
   `BinEmptying`, `BinSource`, `BinFlag`.
 
@@ -618,9 +629,9 @@ insert into public.bins (kind, name, sort, max_days, default_rate_per_day) value
 | `src/app/bins/page.tsx` | `requireHouseMember("/bins")`, then renders `<BinsHouse>` |
 | `src/app/bins/bins-scene.tsx`, `bin.tsx`, `bin-sheet.tsx`, `bin-check.tsx`, `use-bins.ts`, `bins.module.css` | The scene, a single bin, the sheet, the photo flow, and data + Realtime (same split as `src/app/fridge/`) |
 | `src/app/bins/actions.ts` | Server Action `estimateBinFill` |
-| `src/app/api/bins/tick/route.ts` | Cron entry point (§8) |
-| `src/app/api/push/subscribe/route.ts` (or a Server Action) | Saves a push subscription |
-| `public/sw.js`, `src/app/manifest.ts` | Service worker for push and the web app manifest |
+| `src/app/api/bins/tick/route.ts` | Phase 4: cron entry point (§8) |
+| `src/app/api/push/subscribe/route.ts` (or a Server Action) | Phase 4: saves a push subscription |
+| `public/sw.js`, `src/app/manifest.ts` | Phase 4: service worker for push and the web app manifest |
 | `src/lib/bin-level.ts` | `currentLevel`, `binState`, rate math (pure, tested) |
 | `src/lib/bins.ts` | `tonightsCleaner`, `isTonight`, `reminderPlan(now, bins, …)` (pure, tested) |
 | `src/lib/bin-vision.ts` | Prompt, schema and the Anthropic call (server only, `import "server-only"`) |
@@ -630,9 +641,10 @@ insert into public.bins (kind, name, sort, max_days, default_rate_per_day) value
 | `src/app/dishes/dish-calendar.tsx` | The "bin check" card in the completed-today panel |
 
 `env.example` gains `ANTHROPIC_API_KEY`, `BIN_VISION_MODEL`,
-`BIN_VISION_ESCALATION_MODEL`, `SUPABASE_SERVICE_ROLE_KEY`, `BINS_CRON_SECRET`,
-`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. Only
-the VAPID public key is `NEXT_PUBLIC_`.
+`BIN_VISION_ESCALATION_MODEL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase's
+secret key, so only the server can record an AI estimate; §17). Phase 4 adds
+`BINS_CRON_SECRET`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and
+`VAPID_SUBJECT`.
 
 ## 12. Photo privacy and retention
 
@@ -646,8 +658,8 @@ the VAPID public key is `NEXT_PUBLIC_`.
   and link them from the note.
 - The prompt tells the model to ignore people and writing. The hint asks people
   to point the camera into the bin, not at the room.
-- **Retention:** the tick job deletes `bin-photos` objects older than **14
-  days** (except the current calibration photos) and sets `photo_path = null`
+- **Retention:** when someone opens `/bins` (at most once an hour), the
+  server deletes `bin-photos` objects older than **14 days** (except the current calibration photos) and sets `photo_path = null`
   on their readings. Fill %, flags, notes and `model_output` stay for trends.
   Dish photos are different: they're house history, and nobody will miss a
   photo of last month's garbage.
@@ -676,13 +688,14 @@ the VAPID public key is `NEXT_PUBLIC_`.
 - **Bag changed half-full** (it was leaking): Emptied it, plus a manual level
   if anything went back in.
 - **Everyone away:** use Pause. Without it, extrapolation would raise false
-  alarms, so the tick also skips stage 2–3 escalations when no member has
-  opened the app in 48 hours (phase 4).
+  alarms, so stage 2–3 escalations are skipped when no member has opened the
+  site in 48 hours (phase 5).
 - **API outage, timeout or refusal:** the reading stays `pending`, the slider is
-  offered, and the cron retries 3 times, then marks it `failed`. Dish check-ins
+  offered, and it's retried on the next `/bins` page load (3 times), then
+  marked `failed`. Dish check-ins
   are never affected.
-- **Push subscription expired** (404/410 from the push service): delete that
-  row. If a member has no working subscription, their menu shows "Reminders
+- **Push subscription expired** (phase 4; 404/410 from the push service):
+  delete that row. If a member has no working subscription, their menu shows "Reminders
   off on this phone".
 - **iPhone without the home-screen install:** no push. The "Turn on bin
   reminders" card explains the two taps. That person still sees banners.
@@ -731,17 +744,17 @@ another branch). Where the two meet:
   - the tally owns a `takeouts` table and `record_bin_emptied` inserts into it
     in the same transaction.
 - **Reminders know the collection day.** `reminderPlan` takes the tally's
-  `nextCollection(date)`. On **collection eve**, the garbage `full_at` drops to
+  `nextCollection(date)`, which reads the actual London Zone B2 pickup dates
+  (`collection_days`), since the pickup day moves after every holiday. On **collection eve**, the garbage `full_at` drops to
   `warn_at`, and the stage 1 text becomes "Pickup's tomorrow and the garbage is
   70% full. Take it out tonight so it makes the truck."
 - **A full bin on collection eve gets priority.** If both a "bins to the curb"
-  reminder (tally) and a "bin full" reminder (this spec) are due in the same
-  tick, they merge into one push, with the full bin first. The caps in §8 apply
-  across both features (they share `push_subscriptions` and should share one
-  sender in `src/lib/push.ts`).
-- **Shared infrastructure:** whichever spec ships first builds the service
-  worker, the `push_subscriptions` table, the cron route pattern and quiet
-  hours. The other reuses them.
+  reminder (tally) and a "bin full" reminder (this spec) are due at once,
+  they show as one banner, with the full bin first (and, once push exists,
+  one push).
+- **Shared infrastructure (push):** whichever spec adds push first builds
+  the service worker, the `push_subscriptions` table, the cron route pattern
+  and quiet hours. The other reuses them.
 - **The home page:** the bins card and the tally card could become one "Trash"
   card with two halves. That gets decided when both exist.
 
@@ -756,15 +769,16 @@ Measured after 4 weeks, from the tables (no analytics SDK):
 - **Bins go out in time:** median time from stage 1 to emptying < 12 h.
   "Overflowing" readings ≤ 1 per month (compare with the first two weeks as a
   baseline).
-- **Reminders aren't annoying:** ≥ 5 of 6 people have push on. Nobody keeps
-  reminders muted for more than a week. ≤ 1.5 pushes per person per day on
-  average.
+- **Reminders work in-app:** if bins regularly sit at "Take it out" for
+  more than 24 h because nobody opened the site, that's the signal to add
+  push (phase 4). Once push exists: ≥ 5 of 6 people have it on, and ≤ 1.5
+  pushes per person per day.
 - **Cost:** < $2/month of API spend.
 
 ## 17. Open questions
 
-- **Who gets the first "full" push:** everyone (as asked, naming the person on
-  duty), or only the cleaner first, then everyone at stage 2? Pinging six
+- **Who sees the first "full" reminder:** everyone (as asked, naming the
+  person on duty), or only the cleaner first, then everyone at stage 2? Pinging six
   people may lead each one to assume someone else will do it.
 - **Should the bin check earn points** on the dish leaderboard (e.g. +1)? It
   would help adoption, but it mixes two chores and changes the 3/1/0 rules.
@@ -776,20 +790,24 @@ Measured after 4 weeks, from the tables (no analytics SDK):
 - **Is the house OK with Anthropic** processing photos of the bins? The
   alternative is manual-only mode (slider, no photo), which still gives
   extrapolation and reminders.
-- **Where is the app deployed?** That decides between Supabase `pg_cron` +
-  `pg_net` and Vercel Cron for the tick. It also matters for push, because the
-  service worker needs HTTPS on a stable domain.
-- **Quiet hours:** are 23:00–08:00 and the 22:00 photo nudge right for this
-  house?
+- **Hosting (only for phone notifications):** where the website runs (e.g.
+  Vercel) decides how the scheduled check works, and push needs a stable
+  HTTPS address. Not needed for v1.
+- **Supabase secret key:** recording AI estimates so members can't fake them
+  needs Supabase's secret (service-role) key on the website's server (Project
+  Settings → API keys). The same question is in the sink-check spec; one
+  answer covers both.
+- **Photo nudge time:** is 21:00 right for the "Snap the bins before bed?"
+  card?
 - **Thresholds:** 70/90 to start, editable in Supabase. Should there be an
   in-app settings sheet in v1?
 
 ## 18. Phased rollout
 
 Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
-(see `AGENTS.md`), especially Route Handlers, Server Actions and the PWA guide.
+(see `AGENTS.md`), especially Server Actions (and the PWA guide for phase 4).
 
-1. **Phase 1: manual bins (no AI, no push).** Migration `0008` (tables, RPCs,
+1. **Phase 1: manual bins (no AI).** Migration `0008` (tables, RPCs,
    bucket, seed), types, `bin-level.ts` + tests, the `/bins` scene with the
    **Set level** slider and **Emptied it** + undo, extrapolation, the in-app
    banner, the home card and nav, and the `bins.png` art. This tests the
@@ -798,14 +816,16 @@ Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
    `bin-photos` upload, `estimateBinFill` with Haiku 5.5 → Sonnet 5.5
    escalation, calibration, rejected/failed states, Realtime, and inferred
    emptyings.
-3. **Phase 3: reminders.** Manifest + service worker, `push_subscriptions`, the
-   "Turn on bin reminders" card, the `/api/bins/tick` route + `pg_cron`, stages
-   0–3, quiet hours, caps, mute, photo purge. Hook in the tally's collection
-   day if it has shipped.
-4. **Phase 4: polish.** The recycling bin, a 7-day sparkline, weekday-aware
+3. **Phase 3: in-app reminders.** Banner stages 0–3, the 21:00 photo card,
+   the page-load photo cleanup, and the tally's collection day if it has
+   shipped.
+4. **Phase 4: phone notifications (if needed).** Once hosting is settled:
+   manifest + service worker, `push_subscriptions`, the "Turn on bin
+   reminders" card, the `/api/bins/tick` route + scheduler, quiet hours,
+   caps and mute.
+5. **Phase 5: polish.** The recycling bin, a 7-day sparkline, weekday-aware
    rates (e.g. more garbage after the weekend), corrections as examples in the
-   prompt, email as a fallback channel, and skipping escalation when nobody's
-   home.
+   prompt, and skipping escalation when nobody's home.
 
 Phases 1–2 already make the bins feel alive. Phase 3 is what makes them
 *remind everyone*, so the feature isn't done without it.
@@ -822,11 +842,9 @@ Phases 1–2 already make the bins feel alive. Phase 3 is what makes them
   `/bins` page animates to it.
 - A photo of a ceiling or a pitch-black room is rejected with a retake hint and
   doesn't change the level.
-- Crossing 90% puts a red "Take it out" banner on the home page, and every
-  subscribed phone gets one push naming tonight's cleaner. A second tick
-  doesn't send it again.
-- A bin that becomes full at 23:30 sends nothing until 08:00, and nothing at
-  all if someone empties it before then.
+- Crossing 90% puts a red "Take it out" banner on the home page, `/bins` and
+  `/dishes` for everyone, naming tonight's cleaner. It escalates to "still
+  full" and "overflowing" if nobody empties it.
 - **Emptied it** drops the fill to 0 with the bag animation on every open
   screen, cancels pending reminders and can be undone for 10 minutes.
 - A photo reading 50 points lower than the last one, with no emptying, creates
