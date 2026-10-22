@@ -5,7 +5,8 @@ Status: **proposed** (scoping only; nothing built) · Owner: Jia Yi · Last upda
 > This builds on the [virtual fridge](virtual-fridge.md). It doesn't add a
 > second inventory. Photos are one more way to keep `fridge_items` up to date,
 > alongside the grocery import and "+ Add item". It also adds the one thing the
-> fridge can't do yet: a **grocery list**.
+> fridge can't do yet: a **grocery list**. Everything here lives inside the
+> house website, on the existing `/fridge` page and a new list next to it.
 
 ## 1. Summary
 
@@ -50,7 +51,7 @@ the fridge."*
 | Quantities | Same rule as the fridge: one row per whole item (`×2` → 2 rows). New: an optional **amount left** (`full` / `half` / `low`) for things you use up gradually (milk, sauces) |
 | Grocery list | New table `grocery_list_items`. Filled from staples, used-up items and by hand. No prices, no stores, no aisles |
 | Staples | New table `house_staples`: "we always want ≥ N of X". Edited in-app (small settings sheet) |
-| Ownership | New nullable `owner_id` on `fridge_items`, `house_staples` and `grocery_list_items`. `null` = shared (the default). It's a label, not a privacy wall: every member can still see everything |
+| Ownership | New nullable `owner_id` on `fridge_items`, `house_staples` and `grocery_list_items`. `null` = shared (the default). **Confirmed:** it's a label, not a privacy wall; every member can still see everything |
 | Photos | Private bucket `fridge-photos`. **Deleted when the scan is saved or cancelled**, and swept after 24 h at the latest. Only the detections (text) are kept |
 | Cost guard | A daily cap per member (default 10 scans) and per house (default 30), checked on the server before calling the model |
 | Live updates | The existing Realtime channel on `fridge_items` covers fridge changes. Add `grocery_list_items` to the publication so the list is live too |
@@ -206,9 +207,9 @@ Bought recently (3)        ← ticked items, hidden after 2 days
 - **Grocery list:** shared staples go to *House*; personal staples go to that
   person's section. When someone finishes a personal item, it's only suggested
   for that person's list.
-- **Not a privacy feature.** Everyone in the house can still see every item
-  and every list entry. RLS stays "any house member can read". (Open question
-  §15.)
+- **Confirmed: labelled, not hidden.** Everyone in the house can see every
+  item and every list entry, with the owner's badge on personal ones. RLS
+  stays "any house member can read".
 
 ## 6. Staples
 
@@ -676,9 +677,6 @@ variables.
 
 ## 17. Open questions
 
-- **Personal = private?** Right now personal items and list entries are
-  visible to the whole house (just labelled). Should someone's personal list
-  be hidden from others?
 - **Who pays for the API key,** and is ~$4/month (Sonnet) fine, or should we
   start on Haiku and only move up if it's not good enough?
 - **Auto-add to the list, or suggest only?** The spec only *suggests* missing
