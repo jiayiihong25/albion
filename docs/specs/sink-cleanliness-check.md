@@ -43,7 +43,7 @@ of a clean sink** and decides whether the sink actually counts as clean.
 | Confidence | Per criterion, as `low` / `medium` / `high`. Labels, not percentages: models aren't well calibrated on numbers, and three levels are enough to act on |
 | Model | An Anthropic Claude vision model, set by a **server-side setting** (`SINK_CHECK_MODEL`). Default `claude-opus-5-5`. `claude-sonnet-5-5` and `claude-haiku-5-5` go through the same eval (§13) and can be switched in with no code change |
 | Output format | Structured outputs (a JSON schema via `output_config.format`). No parsing free text |
-| Where the call runs | A Next.js **Route Handler** on the Node runtime, `POST /api/sink-check`. The Anthropic key and the Supabase service-role key exist only on the server |
+| Where the call runs | A Next.js **Route Handler** on the Node runtime, `POST /api/sink-check`, deployed with the rest of the site on Vercel. The Anthropic key and the Supabase secret (service-role) key exist only on the server, as Vercel environment variables (and `.env.local` for local dev), never `NEXT_PUBLIC_`. **Decided:** they're added when this is built |
 | Who records the verdict | Only the server, through a `security definer` function that only `service_role` may run. Members can't write or edit verdicts |
 | Tie-in with check-ins | **Confirmed: warning badge, never a block.** Phased (§16): **shadow → advisory**. The house chooses the mode with one setting, `house_settings.sink_check_mode` |
 | On failure | The check-in still counts. The day gets a warning badge and the other housemates are asked to take a look (§7.3). The washer can optionally fix it and add a new photo. Outages and timeouts are marked "not checked" |
@@ -658,11 +658,6 @@ confidence threshold, or go back to `shadow` with one SQL update.
   confirm? The draft plan is any member, with history.
 - **Points for a confirmed "not clean":** keep full points (the draft
   plan, with the badge shown publicly), drop to 1 point, or 0?
-- **Supabase secret key:** recording verdicts so members can't fake them
-  needs Supabase's secret (service-role) key on the website's server. It's
-  under Project Settings → API keys in the Supabase dashboard. If you'd
-  rather not handle it, the check can run as a Supabase Edge Function
-  instead, which gets that key automatically.
 - **Live camera only?** Should the check-in input use `capture="environment"`
   and refuse library photos, to stop old-photo reuse? That's less convenient,
   and some browsers ignore it anyway.
