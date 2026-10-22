@@ -12,12 +12,19 @@ Status: **draft, not built** · Owner: Jia Yi · Last updated: 2026-10-22
 
 ## 1. Summary
 
-Add a **Garbage night** page (`/garbage`) that works like Dish duty, but
-follows the city's collection schedule instead of a fixed daily rotation:
+Add a **Garbage night** page (`/garbage`) to the house website, next to
+Dish duty and the fridge. It isn't a separate app: it uses the same login,
+nav, house palette and illustrations as the rest of the site. It works like
+Dish duty, but follows the City of London's collection calendar instead of a
+fixed daily rotation:
 
-- **The house's collection schedule:** which streams (garbage, recycling,
-  green bin, yard waste) go out on which weekday, which ones alternate every
-  other week, and the odd holiday shift. Any housemate can edit it in the app.
+- **The house's collection schedule:** the actual pickup dates from the
+  City of London's **Zone B2** calendar (October 2026 – September 2027),
+  loaded into the app. London's pickup day moves: after every statutory
+  holiday, the regular day shifts one day later for the rest of the year, so
+  a weekly rule can't describe it. The app stores each pickup date and what
+  goes out (green bin and recycling every week, garbage every other week,
+  plus yard-waste weeks). §4 has the full list.
 - **Whose turn:** each collection day is assigned to the next housemate in a
   rotation. Anyone can cover, and whoever checks in gets the points, the same
   as dishes.
@@ -40,20 +47,20 @@ follows the city's collection schedule instead of a fixed daily rotation:
 | --- | --- |
 | Data model | **Separate `takeout_*` tables next to the dish tables.** Don't build a generic "chores" model yet (§6 explains why). Share the scoring and photo helpers |
 | Unit of work | One **collection day** = every stream due that day. One check-in normally covers all of them |
-| Schedule source | Rules the house enters (stream + weekday + every 1 or 2 weeks + an anchor date), plus one-off exceptions for holidays. Computed in SQL, so there's one source of truth |
-| Biweekly alternation | Each rule has an `anchor_on` date (a known pickup day). A date matches if it falls on that weekday and the number of weeks since the anchor is a multiple of `every_weeks` |
-| Window | House-wide setting: opens at **18:00 the evening before**, on-time deadline **07:00 collection morning**, Toronto time |
+| Schedule source | **The City of London Zone B2 calendar**, stored as one row per pickup date (`collection_days`) and seeded from the city's published PDF. No weekly rules: the day moves after every holiday |
+| Yearly refresh | The city publishes a new calendar each fall (October–September). A seed migration loads it; members can also fix a single date in the app if the city announces a change |
+| Window | House-wide setting: opens at **18:00 the evening before**, on-time deadline **07:00 collection morning**, Eastern time. These are the city's own rules ("at the curb by 7 a.m., but no earlier than 6 p.m. the night before") |
 | Responsibility | **Rotation**, one housemate per collection day, in a fixed order. Anyone can cover |
 | Done | A check-in RPC. **Photo optional** (same private-bucket pattern as dishes) |
 | Scoring | 3 on time / 1 late / 0 missed, the same as dishes. A takeout outside the schedule (§9) scores 1 |
 | Missed | No backfill after the collection day ends. The day stays red, and the next collection day shows a "last pickup was missed" banner |
 | Reminders | **Phase 1: in app only** (home card, page banner), the same as the fridge. Phase 2: a calendar feed (.ics), then web push (§11) |
 | Sync | Polls every 15 s and on focus, the same as Dish duty. No Realtime needed |
-| Schedule editing | Any house member, in the app, from a settings sheet on `/garbage`. Each change records who made it |
+| Schedule editing | Any house member can move, cancel or add a single pickup from the `/garbage` page (for a city service notice). Each change records who made it |
 
-Out of scope for now: push/email/SMS in phase 1; importing the city's
-calendar automatically; "bring the bins back in" tracking; cost or penalty
-tracking; the bin fill levels (`virtual-bins.md`).
+Out of scope for now: push/email/SMS in phase 1; pulling the calendar
+automatically from Recycle Coach or london.ca; "bring the bins back in"
+tracking; cost or penalty tracking; the bin fill levels (`virtual-bins.md`).
 
 ## 3. Current state (what already exists)
 
@@ -96,20 +103,93 @@ tracking; the bin fill levels (`virtual-bins.md`).
 
 ## 4. The collection schedule
 
-### What a schedule looks like
+### Where it comes from
 
-Most cities collect on one fixed weekday, with some streams every week and
-some every other week. Toronto's curbside pattern, for example, alternates
-weekly:
+The house is in the City of London's **Zone B2**. The city publishes a
+calendar each fall covering October to September (`London_WasteCollection2026-27_B2.pdf`,
+also on Recycle Coach and london.ca/wastemanagement). The pattern:
 
-| Week | Streams |
-| --- | --- |
-| Week A | Green bin + **Garbage** (+ yard waste in season) |
-| Week B | Green bin + **Recycling** |
+- **Green bin and recycling (blue box) every week.**
+- **Garbage every other week**, on the same day as green bin and recycling.
+- **Yard waste** in some weeks, set out by 7 am on the **first day** of that
+  week. The crew comes once some time during that week.
+- **The pickup day moves.** After each statutory holiday, the regular pickup
+  day shifts one day later and stays there until the next holiday. In
+  2026–27 it starts on Monday and works its way round to Friday.
+- **3-container exemption days:** a few garbage days where the
+  3-container limit isn't enforced (useful after holidays).
 
-The house's real weekday and A/B phase are **not known yet** (§18). The app
-ships with an empty schedule and a first-run setup sheet that offers a
-"Toronto curbside" preset, plus "Custom".
+Because the day moves, the app doesn't store a weekly rule. It stores
+**every pickup date** for the season.
+
+### Zone B2, October 2026 – September 2027
+
+Transcribed from the city's PDF. 🟢 green bin, ♻️ recycling, 🗑️ garbage,
+🍂 yard-waste week starts. The seed migration must be checked against the PDF
+once more before it ships (§17, phase 0).
+
+| Date | Day | Goes out | Note |
+| --- | --- | --- | --- |
+| 2026-10-05 | Mon | 🟢 ♻️ 🗑️ | 🍂 yard-waste week |
+| 2026-10-13 | Tue | 🟢 ♻️ 🗑️ | Thanksgiving (Mon Oct 12): day moves to **Tuesday** |
+| 2026-10-20 | Tue | 🟢 ♻️ | |
+| 2026-10-27 | Tue | 🟢 ♻️ 🗑️ | |
+| 2026-11-03 | Tue | 🟢 ♻️ | 🍂 yard-waste week from Mon Nov 2 |
+| 2026-11-10 | Tue | 🟢 ♻️ 🗑️ | |
+| 2026-11-17 | Tue | 🟢 ♻️ | |
+| 2026-11-24 | Tue | 🟢 ♻️ 🗑️ | 🍂 yard-waste week from Mon Nov 23 |
+| 2026-12-01 | Tue | 🟢 ♻️ | |
+| 2026-12-08 | Tue | 🟢 ♻️ 🗑️ | |
+| 2026-12-15 | Tue | 🟢 ♻️ | |
+| 2026-12-22 | Tue | 🟢 ♻️ 🗑️ | |
+| 2026-12-30 | Wed | 🟢 ♻️ | Christmas (Fri Dec 25): day moves to **Wednesday** |
+| 2027-01-07 | Thu | 🟢 ♻️ 🗑️ | New Year's (Fri Jan 1): day moves to **Thursday**. 3-container limit not enforced |
+| 2027-01-14 | Thu | 🟢 ♻️ | |
+| 2027-01-21 | Thu | 🟢 ♻️ 🗑️ | |
+| 2027-01-28 | Thu | 🟢 ♻️ | |
+| 2027-02-04 | Thu | 🟢 ♻️ 🗑️ | |
+| 2027-02-11 | Thu | 🟢 ♻️ | |
+| 2027-02-19 | Fri | 🟢 ♻️ 🗑️ | Family Day (Mon Feb 15): day moves to **Friday** |
+| 2027-02-26 | Fri | 🟢 ♻️ | |
+| 2027-03-05 | Fri | 🟢 ♻️ 🗑️ | 3-container limit not enforced |
+| 2027-03-12 | Fri | 🟢 ♻️ | |
+| 2027-03-19 | Fri | 🟢 ♻️ 🗑️ | |
+| 2027-03-29 | Mon | 🟢 ♻️ 🗑️ | Good Friday (Mar 26): day moves to **Monday** |
+| 2027-04-05 | Mon | 🟢 ♻️ | 🍂 yard-waste week |
+| 2027-04-12 | Mon | 🟢 ♻️ 🗑️ | |
+| 2027-04-19 | Mon | 🟢 ♻️ | |
+| 2027-04-26 | Mon | 🟢 ♻️ 🗑️ | |
+| 2027-05-03 | Mon | 🟢 ♻️ | |
+| 2027-05-10 | Mon | 🟢 ♻️ 🗑️ | 🍂 yard-waste week. 3-container limit not enforced |
+| 2027-05-17 | Mon | 🟢 ♻️ | |
+| 2027-05-25 | Tue | 🟢 ♻️ 🗑️ | Victoria Day (Mon May 24): day moves to **Tuesday** |
+| 2027-06-01 | Tue | 🟢 ♻️ | 🍂 yard-waste week from Mon May 31 |
+| 2027-06-08 | Tue | 🟢 ♻️ 🗑️ | |
+| 2027-06-15 | Tue | 🟢 ♻️ | |
+| 2027-06-22 | Tue | 🟢 ♻️ 🗑️ | |
+| 2027-06-29 | Tue | 🟢 ♻️ | 🍂 yard-waste week from Mon Jun 28 |
+| 2027-07-07 | Wed | 🟢 ♻️ 🗑️ | Canada Day (Thu Jul 1): day moves to **Wednesday** |
+| 2027-07-14 | Wed | 🟢 ♻️ | |
+| 2027-07-21 | Wed | 🟢 ♻️ 🗑️ | |
+| 2027-07-28 | Wed | 🟢 ♻️ | |
+| 2027-08-05 | Thu | 🟢 ♻️ 🗑️ | Civic Holiday (Mon Aug 2): day moves to **Thursday**. 🍂 yard-waste week from Tue Aug 3 |
+| 2027-08-12 | Thu | 🟢 ♻️ | |
+| 2027-08-19 | Thu | 🟢 ♻️ 🗑️ | |
+| 2027-08-26 | Thu | 🟢 ♻️ | |
+| 2027-09-02 | Thu | 🟢 ♻️ 🗑️ | |
+| 2027-09-10 | Fri | 🟢 ♻️ | Labour Day (Mon Sep 6): day moves to **Friday**. 🍂 yard-waste week from Tue Sep 7 |
+| 2027-09-17 | Fri | 🟢 ♻️ 🗑️ | 3-container limit not enforced |
+| 2027-09-24 | Fri | 🟢 ♻️ | |
+
+Sep 30, 2027 (Truth and Reconciliation) is a holiday with no collection; its
+shift belongs to the 2027–28 calendar.
+
+Sanity checks the seed test should assert: every listed date has green bin
+and recycling; garbage is on every other pickup, except twice where the
+PDF shows two garbage pickups in a row (Oct 5 and 13 around Thanksgiving,
+Mar 19 and 29 around Good Friday); no pickup falls on a listed holiday;
+consecutive pickups are 6–10 days apart. Those two back-to-back garbage
+pickups are worth confirming on Recycle Coach before the seed ships.
 
 ### Streams
 
@@ -118,67 +198,58 @@ A small fixed set, seeded and read-only for members:
 | key | label | icon | colour (reuses the house palette) |
 | --- | --- | --- | --- |
 | `garbage` | Garbage | 🗑️ | charcoal |
-| `recycling` | Recycling | ♻️ | blue (`#d8e7ed`) |
+| `recycling` | Recycling (blue box) | ♻️ | blue (`#d8e7ed`) |
 | `green_bin` | Green bin | 🍌 | sage (`#dce8d2`) |
 | `yard_waste` | Yard waste | 🍂 | tan (`#f0dfcd`) |
 
-### Rules
+Yard waste is shown on the pickup that falls in a yard-waste week, as an
+optional stream (most weeks the house won't have any). It's unticked by
+default at check-in.
 
-Each rule is one stream on one weekday, every `every_weeks` weeks (1 or 2),
-in phase with `anchor_on`. A rule can have a season (`active_from` and
-`active_until`, given as month-day, e.g. yard waste from March to December)
-and can be paused.
+### Changes after the calendar is loaded
 
-A date `d` is a collection date for a rule if:
-`weekday(d) = rule.weekday` and
-`((d - rule.anchor_on) / 7) mod rule.every_weeks = 0` and `d` is in season.
+The city posts service disruptions (snow, strikes, missed streets) on
+Recycle Coach and london.ca. Any member can fix a single date from the day's
+menu on `/garbage`:
 
-The setup sheet never asks for an "anchor date". It asks **"Which week is
-this week?"** (Garbage week / Recycling week) and works out `anchor_on`
-from the answer.
+- **Move:** change a pickup's date. The row keeps `shifted_from`, and the
+  day shows a badge: "Moved from Tue (city notice)".
+- **Cancel:** no pickup that day. The day turns grey, with no points either
+  way, and a cancelled day **doesn't use up** a rotation turn.
+- **Add:** an extra city pickup (rare).
 
-### Holiday shifts and one-off exceptions
+Every change records who made it and when.
 
-`collection_exceptions` rows override what the rules produce on a date:
+### Next year's calendar
 
-- **Shift:** `original_on` → `shifted_to`. For example, Christmas Thursday
-  moves to Friday. It applies to all streams, or to one.
-- **Cancel:** `shifted_to = null`. No pickup.
-- **Extra:** a pickup on a date with no rule (e.g. a bulk-item day), with
-  `original_on = null`.
-
-Rules:
-
-- **Biweekly parity comes from the original date**, never the shifted one.
-  A shift into the next week doesn't flip Garbage/Recycling weeks.
-- If a shifted pickup lands on a day that already has one, the streams are
-  merged into one collection day.
-- The takeout window moves with the shift (the evening before `shifted_to`).
-- Any member can add an exception from the schedule sheet, or from a day's
-  menu in the calendar ("Pickup moved…"). An upcoming exception shows as a
-  badge on that day: "Moved from Thu (holiday)".
+The 2027–28 calendar comes out around September 2027. Loading it is a new
+seed migration (`collection_days` rows for the next season), done the same
+way as this one: transcribe the PDF, run the sanity checks, ship. Two weeks
+before the last loaded date, `/garbage` shows "The pickup calendar runs out
+on Sep 24. Add next year's" so it doesn't silently stop. Phase 3 looks at
+pulling the dates from Recycle Coach instead (§17).
 
 ### One source of truth: `collection_calendar(p_from, p_to)`
 
-A `stable` SQL function. It expands the rules and exceptions into
-occurrences over a date range (at most ~120 days), using
-`generate_series`, and returns:
+A `stable` SQL function that reads `collection_days` over a date range (at
+most ~120 days) and returns:
 
 ```
-collection_on date, streams text[], window_opens_at timestamptz,
-due_by timestamptz, assigned_roommate_id uuid, shifted_from date,
-note text
+collection_on date, streams text[], optional_streams text[],
+window_opens_at timestamptz, due_by timestamptz,
+assigned_roommate_id uuid, shifted_from date, note text
 ```
 
 - `/garbage`, the home page and the check-in RPC all use it. The client never
-  reimplements the schedule maths, so the server and UI can't drift.
-- `window_opens_at` and `due_by` are worked out in Toronto time from the
-  settings (§5), so DST is handled by Postgres.
+  reimplements the schedule, so the server and UI can't drift.
+- `window_opens_at` and `due_by` are worked out in `America/Toronto` time
+  (London, Ontario is on Eastern time) from the settings (§5), so DST is
+  handled by Postgres.
 - `assigned_roommate_id` comes from the rotation (§7).
 
 ## 5. The takeout window
 
-| Moment (Toronto time) | Status of the collection day |
+| Moment (Eastern time) | Status of the collection day |
 | --- | --- |
 | Before `window_opens_at` (default: 18:00 the evening before) | `upcoming`: check-in not allowed yet ("The bins go out from 6 pm the night before") |
 | `window_opens_at` → `due_by` (default: collection day, 07:00) | `tonight` (evening) / `due` (after midnight): the check-in counts as **on time** |
@@ -190,7 +261,8 @@ note text
   `takeout_settings(window_opens_time time default '18:00',
   window_opens_days_before int default 1, due_by_time time default '07:00')`.
 - Why "night before" counts as on time: most houses put the bins out after
-  dinner, and Toronto asks for them by 7 am. The deadline is the morning of
+  dinner, and London's rule is "at the curb by 7 a.m., but no earlier than
+  6 p.m. the night before". The deadline is the morning of
   the pickup, and the window opens the night before. Both are configurable,
   so a house that puts them out in the morning can set the window to open at,
   say, 05:00 the same day.
@@ -214,7 +286,7 @@ note text
   tests.
 - Dishes and garbage don't have the same shape. Dishes are one task per day
   with a weekday-owner rotation. Garbage has several streams, follows a
-  schedule with biweekly parity and holiday shifts, has a window that crosses
+  schedule that moves after every holiday, has a window that crosses
   midnight, and has takeouts outside the schedule. A general model designed
   from only two examples tends to fit neither.
 
@@ -243,30 +315,17 @@ create table public.collection_streams (
   sort_order int not null default 0
 );
 
--- Recurring pickups
-create table public.collection_rules (
-  id uuid primary key default gen_random_uuid(),
-  stream text not null references public.collection_streams(key),
-  weekday smallint not null check (weekday between 0 and 6),   -- 0 = Sunday, like getUTCDay
-  every_weeks smallint not null default 1 check (every_weeks in (1, 2)),
-  anchor_on date not null check (extract(dow from anchor_on) = weekday),
-  season_start text check (season_start ~ '^\d{2}-\d{2}$'),     -- 'MM-DD', null = all year
-  season_end   text check (season_end   ~ '^\d{2}-\d{2}$'),
-  paused boolean not null default false,
-  updated_by uuid references public.roommates(id) default public.house_member_id(),
+-- Every pickup date, seeded from the city's calendar (§4)
+create table public.collection_days (
+  collection_on date primary key,
+  streams text[] not null check (cardinality(streams) > 0),   -- e.g. {green_bin,recycling,garbage}
+  optional_streams text[] not null default '{}',              -- e.g. {yard_waste}
+  shifted_from date,                -- set when a member moves a pickup
+  cancelled boolean not null default false,
+  note text check (char_length(note) <= 120),                 -- "Thanksgiving: day moves to Tuesday"
+  source text not null default 'city' check (source in ('city', 'member')),
+  updated_by uuid references public.roommates(id),
   updated_at timestamptz not null default now()
-);
-
--- Holiday shifts, cancellations, extra pickups
-create table public.collection_exceptions (
-  id uuid primary key default gen_random_uuid(),
-  original_on date,                 -- null = extra pickup
-  shifted_to date,                  -- null = cancelled
-  stream text references public.collection_streams(key),  -- null = all streams that day
-  reason text check (char_length(reason) <= 80),
-  created_by uuid references public.roommates(id) default public.house_member_id(),
-  created_at timestamptz not null default now(),
-  check (original_on is not null or shifted_to is not null)
 );
 
 -- Readable house-wide takeout settings (single row)
@@ -305,12 +364,13 @@ create unique index takeout_one_per_collection_day
 - `on_time` and `due_by` are **frozen at check-in**. Editing the schedule
   later never changes past scores. That's why this stores them rather than
   working them out from `created_at` the way the dish leaderboard does.
-- **RLS:** members can `select` everything. `collection_rules`,
-  `collection_exceptions` and `takeout_settings` are written through small
-  security-definer RPCs (`save_collection_rule`, `delete_collection_rule`,
-  `save_collection_exception`, `delete_collection_exception`,
+- **Seed:** the migration inserts the 50 Zone B2 dates from §4 with
+  `source = 'city'`. Next year's calendar is a new seed migration.
+- **RLS:** members can `select` everything. `collection_days` and
+  `takeout_settings` are written through small security-definer RPCs
+  (`move_collection_day`, `cancel_collection_day`, `add_collection_day`,
   `save_takeout_settings`), which check `house_member_id()` and set
-  `updated_by`. `takeout_completions` can only be written through the RPCs
+  `updated_by` and `source = 'member'`. `takeout_completions` can only be written through the RPCs
   below. Clients can't set `roommate_id`, `created_at`, `on_time` or
   `due_by`.
 - **Check-in:** `submit_takeout_check_in(p_collection_on date, p_streams
@@ -422,18 +482,19 @@ a lid, in the same clay style, with the prompt added to
 4. **Day panel** (`#day-check-in`, like the dish one): the streams, who's
    assigned, the window ("Out between Wed 6 pm and Thu 7 am"), the check-in
    form or the completed state (who, when, on time / late, photo), and
-   exception badges.
+   "moved" / "cancelled" badges and the city's note (e.g. "Thanksgiving: day
+   moves to Tuesday").
 5. **Leaderboard sidebar:** `TakeoutLeaderboard`, the same component shape as
    `DishLeaderboard` (rank, avatar, points, on-time / late counts, plus a
    "missed" count, which dishes doesn't show).
 6. **Schedule sheet** ("Edit schedule", a bottom sheet like the fridge's
    `sheet.tsx`):
-   - First run: "Which day is pickup?" (weekday picker) → "Which week is this
-     week?" (Garbage / Recycling) → a preset with the streams ticked → Save.
-   - After that: a list of rules (stream · weekday · every week / every other
-     week · season · pause), plus **Holiday changes** (upcoming exceptions,
-     "+ Add a change") and **Times** (window opens / due by), with the
-     rotation start shown read-only.
+   - No first-run setup: the city calendar is already loaded.
+   - **Upcoming pickups** for the next 8 weeks, with "Move", "Cancel" and
+     "+ Add a pickup" for city service notices, plus **Times** (window opens /
+     due by), with the rotation start shown read-only.
+   - A link to london.ca/wastemanagement and Recycle Coach for checking
+     service notices.
    - "Last edited by Anson, Oct 20" at the bottom.
 
 ### UI states
@@ -444,7 +505,7 @@ a lid, in the same clay style, with the prompt added to
 | Loading | The same skeleton and `aria-busy` as the dish calendar |
 | Migration missing | The dish "One quick setup step" banner naming `0008_garbage_takeout.sql` |
 | Error / offline | The dish "couldn't load" banner with Try again |
-| No pickup this week (cancelled) | The banner says "No pickup this week (holiday)". The next pickup is shown |
+| No pickup this week (cancelled) | The banner says "No pickup this week (city notice)". The next pickup is shown |
 | Check-in saving | "Uploading your photo…" / "Saving…", and the button is disabled |
 | Duplicate | "Already out, thanks to Kevin", and the page refreshes |
 | Too early | The button is disabled, with a hint: "Opens Wed 6 pm" |
@@ -539,14 +600,14 @@ Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
      still pass unchanged.
 3. **Pure logic + tests** (`src/lib/takeout.ts`): `takeoutStatus(day, now,
    completion)` → `upcoming | tonight | due | late | done | done-late |
-   missed | cancelled`, the copy helpers, and the preset → rules conversion
-   (including working out `anchor_on` from "which week is this week").
+   missed | cancelled` and the copy helpers.
 4. **PGlite tests** (`tests/garbage-takeout.test.mjs`):
-   - biweekly parity over a year
-   - a holiday shift across a week boundary keeps the parity
-   - a shift merging into an existing pickup day
+   - the seed matches §4: 50 dates, green bin and recycling on every one,
+     garbage alternating apart from the two back-to-back pairs in §4, no
+     pickup on a holiday
+   - moving a pickup onto a day that already has one is refused
    - a cancelled day doesn't use up a rotation turn
-   - seasonal rules
+   - the "calendar runs out" warning shows two weeks before the last date
    - DST weekends (the window across the November fallback)
    - the RPC refuses: before the window, after the day ends, a non-member, a
      stream that isn't due that day, a duplicate, and a photo that isn't the
@@ -555,7 +616,7 @@ Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
    - undo only works for your own row and only within 15 minutes
 5. **`/garbage` page:** the banner, week strip + Coming up, the day panel and
    check-in (photo optional), and the leaderboard.
-6. **Schedule sheet:** first-run setup, editing rules, exceptions and times.
+6. **Schedule sheet:** upcoming pickups, move / cancel / add, and times.
 7. **Home card + nav,** the `garbage.png` illustration, and README updates
    (the migration step and the feature description).
 8. *(Phase 2)* The .ics feed, extra takeouts, the virtual bins hook, and
@@ -605,8 +666,8 @@ after 8 weeks:
   has more than 2 more takeouts than anyone else. Covers are counted, so
   repeated covering shows up.
 - **Schedule accuracy:** zero "the truck didn't come / came a different day"
-  surprises after holidays. Proxy: every published holiday shift in the
-  period has an exception entered before the date.
+  surprises. Proxy: every city service notice in the period was entered as
+  a move or cancel before the date.
 - **Adoption:** each of the six housemates has at least one check-in in the
   first 6 weeks. The home card is the most-tapped card on collection eves.
 - **Photo rate** (to inform the bonus question): the share of check-ins with
@@ -629,21 +690,21 @@ after 8 weeks:
 - **DST:** the window is worked out in `America/Toronto` in SQL. On the
   November fallback, "07:00" is still 07:00 local. Tested.
 - **The schedule is edited after check-ins exist:** past rows keep their
-  frozen `on_time` and `due_by`. If someone deletes a rule, past completed
+  frozen `on_time` and `due_by`. If someone cancels or moves a pickup, past completed
   days still show in history (from `takeout_completions`), even if
   `collection_calendar` no longer produces them.
-- **A rule edit changes today's pickup while the window is open:** allowed.
+- **A member moves or cancels today's pickup while the window is open:** allowed.
   The check-in validates against the current calendar. A confirmation in the
   sheet warns "This changes tonight's pickup".
-- **The holiday was entered too late** (the truck came on the original day):
-  the house marks the original date as "Pickup moved…" after the fact. Any
+- **A city notice was entered too late** (the truck came on the original day):
+  the house moves the pickup back after the fact. Any
   check-in already recorded stays.
 - **A shift onto a day with dishes:** no conflict, they're separate tallies.
 - **A housemate moves out** (the roommate is relinked or renamed): the rotation
   is by name order, like `DISH_ROTATION`. Their history stays with their
   roommate id.
 - **Snow day or strike, with no pickup announced on the day:** add a
-  "cancelled" exception for today, and the day turns grey. No points either
+  "Cancel" on today's pickup, and the day turns grey. No points either
   way.
 - **No schedule at all:** the extra takeout still works, so the tally isn't
   blocked by setup.
@@ -656,17 +717,17 @@ after 8 weeks:
 
 | Phase | Contents | Exit criteria |
 | --- | --- | --- |
-| **0: confirm** | Answers to §18 (especially the real weekday, the A/B week, and rotation vs first-come) | The schedule can be entered |
+| **0: confirm** | Answers to §18 (rotation vs first-come). Check the §4 dates against the PDF once more | The seed matches the city calendar |
 | **1: MVP** | Migration, shared helpers, `/garbage` (calendar, check-in with optional photo, leaderboard), schedule sheet, home card + nav. In-app reminders only | Two collection cycles checked in by real housemates. On time ≥ 80% |
 | **2: reminders + bins** | .ics feed with alarms. Extra takeouts. The virtual bins integration (§14). Swaps | Missed pickups ≤ 1 per 8 weeks |
 | **2b** | Web push + the first scheduler (separate design note) | Only if the .ics doesn't fix missed pickups |
-| **3: polish** | Import the City of Toronto's published collection calendar to pre-fill the holiday changes (check the open data source first). "Bins back in" check. Combined house-points view. Look again at a general chores model if a third chore is coming. Optional "low on garbage bags" nudge from the fridge's Household items | — |
+| **3: polish** | Pull the calendar from Recycle Coach or london.ca instead of transcribing the PDF each year (check whether there's a feed first). "Bins back in" check. Combined house-points view. Look again at a general chores model if a third chore is coming. Optional "low on garbage bags" nudge from the fridge's Household items | — |
 
 ## 18. Open questions
 
-- **What's the house's actual schedule?** Which weekday, and is this week a
-  garbage week or a recycling week? Is there yard waste, and does the house
-  use a green bin?
+- **Schedule:** settled. The house is in London Zone B2, and §4 has the
+  2026–27 dates. Does the house ever put out yard waste, or should that
+  stream be hidden?
 - **Rotation or first-come?** The spec recommends a rotation. Should a missed
   turn come back to the same person next time (a "make-up") or keep going?
 - **Is "night before" right?** Opening at 18:00 the evening before, with the
