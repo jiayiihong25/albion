@@ -33,12 +33,12 @@ should leave people laughing about a snipe rather than resenting it.
 | Deduction | `−1` leaderboard point per person tagged. It counts as soon as the snipe is sent, pauses while disputed, and at most 2 per person per house day count (§4) |
 | Several people in one photo | Allowed. Each person tagged gets their own deduction, dispute and status |
 | Anonymity | On by default, but the sender can turn it off. The database **stores** the sender so it can apply limits, but members can't read it. They only see snipes through a function that hides the sender (§6) |
-| Who can see an anonymous sender | Nobody in the app. Only the house admin, in the Supabase dashboard |
+| Who can see an anonymous sender | **Nobody.** There's no house admin role and no reveal button. The sender is stored only so the database can apply limits (§6) |
 | Notifications | In-app only: a badge, a home page banner, and the snipe card. No push or email, matching the fridge (§7) |
 | Dispute window | 48 h from when the snipe was sent |
-| Who decides a dispute | The other housemates vote (everyone except the person disputing and the sender). It ends at 3 votes either way, or after 72 h. A tie or no votes counts as **overturned**, so the accused gets the benefit of the doubt (§8) |
+| Who decides a dispute | **Confirmed: a house vote.** The other housemates vote (everyone except the person disputing and the sender). It ends at 3 votes either way, or after 72 h. A tie or no votes counts as **overturned**, so the accused gets the benefit of the doubt (§8) |
 | AI check | Optional and only advises. Claude looks at the photo on the server and checks that it shows dishes and no faces. It **never** guesses whose dishes they are (§10) |
-| Photos | A new private bucket, `snipe-photos`. The phone shrinks and re-encodes the photo (this removes location and other EXIF data), then uploads it through a server route. Photos are deleted 14 days after a snipe is settled (§11) |
+| Photos | A new private bucket, `snipe-photos`. The phone shrinks and re-encodes the photo (this removes location and other EXIF data) and uploads it under a random name. The database then removes the uploader from the file, so no extra server key is needed (§5). Photos are deleted 14 days after a snipe is settled (§11) |
 | Expiry and deletion | Worked out when someone loads the page. No scheduler, matching the fridge and dish calendar |
 | Migration | `0008_dish_snipes.sql` |
 
@@ -150,32 +150,34 @@ pattern as the fridge's `sheet.tsx`).
    chip updates on the next refresh (the calendar already refreshes every 15 s
    and when the tab regains focus).
 
-### Server path
+### Upload path (no extra server key)
 
-The photo is uploaded on the server (`src/app/snipes/upload/route.ts`, a Route
-Handler that accepts multipart form data), not from the browser:
+The photo is uploaded from the browser, like dish check-ins, but in a way that
+can't give the sender away:
 
-1. Check membership with the user's session (`createClient()` from
-   `src/lib/supabase/server.ts`).
-2. Check the type and size again (reuse `validateDishPhoto`) and work out a
+1. The phone shrinks and re-encodes the photo (removing EXIF) and works out a
    SHA-256 of the bytes.
-3. Optionally run the AI check (§10).
-4. Upload to `snipe-photos/{uuid}.jpg` with a **server-only** Supabase client
-   using the service-role key (new `SUPABASE_SERVICE_ROLE_KEY` in
-   `env.example`, imported with `server-only`).
-5. Call `submit_dish_snipe(...)` **with the user's session**, so the database
-   records `house_member_id()` as the sender.
-6. If the database returns an error, delete the photo with the service-role
-   client (the same "clean up only when we know the save failed" rule as
-   `saveDishCheckIn`).
+2. It uploads to `snipe-photos/{random uuid}.jpg`, **not** under a
+   `{member_id}/…` folder like dish photos.
+3. It calls `submit_dish_snipe(...)` with the user's session, so the
+   database records `house_member_id()` as the sender. In the same
+   transaction, the function clears `owner` / `owner_id` on that
+   `storage.objects` row, so the file no longer says who uploaded it.
+4. If the save fails, the browser deletes its own unrecorded upload (it's
+   still the owner at that point), the same "clean up only when we know the
+   save failed" rule as `saveDishCheckIn`.
 
-**Why not upload from the browser like check-ins?** Storage records who
-uploaded each file (`storage.objects.owner_id`), and dish photos are stored
-under `{member_id}/…`. Either one would give away an anonymous sender. A
-server upload saves `owner_id = null` and gives the file a random name. A
-Route Handler also avoids the small body-size limit on Server Actions. Check
-`node_modules/next/dist/docs/` (per `AGENTS.md`) for Next 16's current limits
-before choosing.
+**Why this is safe:** other members can only read a snipe photo once it's
+recorded (`dish_snipe_photo_visible(name)`), and by then the owner has been
+cleared. A draft that never gets recorded is never readable by anyone else.
+
+**Why not the service-role key:** a server upload with Supabase's secret
+key would also hide the uploader, but it means keeping a key that bypasses
+every security rule on the server. The database-function approach does the
+same job without it. The one thing to check when building: that Storage
+still lets a `security definer` function update `owner` / `owner_id` on
+`storage.objects` (it blocks direct deletes, not updates). A PGlite test
+can't prove this, so test it once against the real project.
 
 ## 6. Anonymity
 
@@ -193,20 +195,21 @@ just by the UI.
   `security definer` function that returns
   `reporter_id = case when not is_anonymous or reporter_id = house_member_id() then reporter_id end`
   plus `is_mine boolean`. Your own anonymous snipes show "You (anonymous)".
-- **Storage:** `snipe-photos` has no upload policy for members. The read policy
-  goes through a `dish_snipe_photo_visible(name)` helper (like
-  `dish_photo_is_recorded`). File names are random UUIDs and `owner_id` is
-  null.
+- **Storage:** members can upload to `snipe-photos` only as a top-level
+  random-UUID file name. The read policy goes through a
+  `dish_snipe_photo_visible(name)` helper (like `dish_photo_is_recorded`), so
+  only recorded photos are readable, and recorded photos have `owner_id =
+  null` (§5).
 - **Leaks through timing:** if a snipe arrives at 2:14 am and only one person
   was awake, everyone will know who sent it. To soften this, anonymous snipes
   show only a part of the day ("this morning", "last night"), not the exact
   minute. Showing them in the feed after a random delay is an open question.
-- **Who can unmask:** only someone with Supabase dashboard access (the house
-  admin, currently Kevin per the join flow's "Ask Kevin" message). There's no
-  reveal button in the app. §19 asks whether a "bad-faith" ruling should reveal
-  the sender.
-- The privacy note in the sheet says it plainly: "Anonymous to housemates. The
-  house admin can see who sent it if there's a problem."
+- **Who can unmask:** nobody in the app. There's no house admin role and no
+  reveal button, and abuse is handled by the automatic limits (§9) and house
+  votes (§8). (Whoever owns the Supabase project can technically read any
+  table, as with all of the app's data. The app never surfaces it.)
+- The privacy note in the sheet says it plainly: "Anonymous to housemates.
+  Nobody can see who sent it."
 
 ## 7. Letting the accused know
 
@@ -277,8 +280,9 @@ hidden `reporter_id` without showing it to anyone.
 A cheap sanity check, not a judge. It's off when `ANTHROPIC_API_KEY` isn't
 set.
 
-- **Where:** inside the upload Route Handler only. The key and the call never
-  reach the browser.
+- **Where:** a small server route, `POST /snipes/check-photo`, that the
+  sheet calls before sending. It only needs the Anthropic key, never a
+  Supabase key. The key and the call never reach the browser.
 - **Model:** `claude-haiku-5-5` using `@anthropic-ai/sdk` (new dependency),
   with `output_config.effort: "low"`. A shrunk image is sent as base64, and
   `output_config.format` asks for structured JSON:
@@ -304,8 +308,7 @@ set.
 - Private bucket `snipe-photos`. Same 20 MB limit and image types as
   `dish-photos`, though real uploads are ~1 MB after shrinking.
 - Only signed-in house members can view them, through `dish_snipe_photo_visible()`.
-- EXIF is removed on the phone (§5), and the server re-encodes again as a
-  backstop if `sharp` is available (§19).
+- EXIF is removed on the phone by re-encoding the image before upload (§5).
 - **How long we keep them:**
   - `withdrawn` / `overturned`: deleted at the next cleanup.
   - `standing` / `upheld`: deleted **14 days** after it's settled (after the
@@ -314,9 +317,11 @@ set.
     The photo is replaced with `photo_path = null`,
     `photo_deleted_at = now()`, and the card shows "Photo cleared after 14
     days 🧽".
-- **Cleanup without a scheduler:** `GET /snipes` runs a server-side cleanup
-  (service-role client, at most once an hour, tracked in `house_settings`).
-  It deletes due files through the Storage API and then calls
+- **Cleanup without a scheduler or server key:** when a member opens
+  `/snipes`, the page asks `snipe_photos_due_for_cleanup()` for due files (at
+  most once an hour per house), deletes them through the Storage API with
+  the member's own session (a delete policy allows members to delete only
+  files that function lists), and then calls
   `acknowledge_snipe_photos_deleted()`. This follows the same "acknowledge
   only after Storage confirms" rule as the old
   `acknowledge_dish_photo_deleted`.
@@ -381,7 +386,7 @@ Functions (all `security definer set search_path = ''`, execute taken from
 
 | Function | Purpose |
 | --- | --- |
-| `submit_dish_snipe(p_photo_path text, p_photo_sha256 text, p_targets uuid[], p_note text, p_anonymous boolean) → uuid` | Checks the file exists with `owner_id is null` and isn't already used, rejects self-snipes, applies the §9 limits, sets `held` for revenge snipes, and inserts the snipe and one row per person tagged |
+| `submit_dish_snipe(p_photo_path text, p_photo_sha256 text, p_targets uuid[], p_note text, p_anonymous boolean) → uuid` | Checks the file exists, was uploaded by the caller and isn't already used, clears its `owner` / `owner_id`, rejects self-snipes, applies the §9 limits, sets `held` for revenge snipes, and inserts the snipe and one row per person tagged |
 | `house_dish_snipes(p_since date) → setof (…)` | The snipe feed with the sender hidden, the current status worked out (including expired disputes), vote counts, and `can_vote` / `is_mine` / `is_me` flags |
 | `dish_snipe_deductions() → table(roommate_id uuid, counted int, on_hold int)` | Leaderboard input, with the daily cap of 2 applied |
 | `mark_dish_snipes_seen()` | Sets `seen_at` on the caller's own rows |
@@ -390,7 +395,8 @@ Functions (all `security definer set search_path = ''`, execute taken from
 | `vote_dish_snipe(p_snipe_id, p_roommate_id, p_uphold)` | Allowed voters only. Locks the row (`for update`) and settles it at 3 votes. On a `held` row, the first allowed "uphold" vote changes it to `standing` |
 | `withdraw_dish_snipe(p_snipe_id)` | Sender only, before it's settled |
 | `dish_snipe_photo_visible(p_path) → boolean` | Used by the storage read policy |
-| `acknowledge_snipe_photos_deleted(p_paths text[])` | Cleanup acknowledgement, for the service role only |
+| `snipe_photos_due_for_cleanup() → setof text` | Photo paths past their keep date (§11), plus drafts in no snipe after 1 h. Used by the cleanup and the delete policy |
+| `acknowledge_snipe_photos_deleted(p_paths text[])` | Cleanup acknowledgement: sets `photo_path = null` only for paths Storage no longer has |
 
 Types in `src/lib/types.ts`: `DishSnipe`, `DishSnipeTarget`,
 `SnipeStatus = 'standing' | 'held' | 'disputed' | 'upheld' | 'overturned' | 'withdrawn'`.
@@ -475,7 +481,7 @@ moves (no crosshair "snap" animation).
   limits stop mattering.
 - **Snipe of a guest's dishes:** dispute it with "Guest's dish". The voters
   decide.
-- **Photo upload works but the save fails:** the server route deletes the file.
+- **Photo upload works but the save fails:** the browser deletes its own draft.
   If the network failure leaves it unclear what happened, the file stays as an
   orphan and the hourly cleanup removes files that are in no snipe after 1 h.
 - **A disputed snipe is due for photo cleanup:** photos are never deleted while
@@ -488,7 +494,7 @@ moves (no crosshair "snap" animation).
 ## 16. Implementation plan (phased rollout)
 
 Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
-(see `AGENTS.md`), especially Route Handlers and request body limits.
+(see `AGENTS.md`), especially Route Handlers (for the phase 3 AI check).
 
 **Phase 1: snipes with no disputes (behind a flag)**
 
@@ -502,12 +508,13 @@ Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
    with the sender null for others but not for the sender.
 3. `src/lib/dish-snipes.ts` and its unit tests, and the
    `buildDishLeaderboard` deduction argument (existing tests unchanged).
-4. Upload Route Handler and server-only service-role client. `env.example`
-   gets `SUPABASE_SERVICE_ROLE_KEY`.
+4. Browser upload under a random name, plus a one-off check against the
+   real Supabase project that `submit_dish_snipe` can clear the file's
+   owner. No new env vars.
 5. Snipe sheet on `/dishes`, leaderboard badge, scoring key, nav badge, home
    page banner, and the "Sniped you" and "All snipes" tabs.
-6. Roll out to the house for a week. Phase 1 still has **Withdraw**, and the
-   admin can delete a snipe as a fallback for disputes.
+6. Roll out to the house for a week. Phase 1 still has **Withdraw** as the
+   fallback until disputes ship in phase 2.
 
 **Phase 2: disputes and protections**
 
@@ -521,7 +528,7 @@ Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
 
 10. AI photo check (Haiku 5.5, behind `ANTHROPIC_API_KEY`).
 11. Perceptual-hash duplicate check, counter-photo on disputes.
-12. README updates (migration `0008`, new env vars, feature description).
+12. README updates (migration `0008`, `ANTHROPIC_API_KEY` if the AI check ships, feature description).
 
 ## 17. Acceptance criteria
 
@@ -568,10 +575,6 @@ Measured from the tables over the first 4–6 weeks (no extra analytics):
 
 ## 19. Open questions
 
-- **Votes or honour system?** The house removed voting for check-ins (`0005`).
-  Option B: a dispute simply cancels the deduction, and the sender can
-  "re-snipe" once with a second housemate's backing. That's simpler with no
-  vote UI, but weaker. Which do you want?
 - **Anonymous by default?** This spec says yes. Or should the default be "show
   my name", with anonymous as the opt-in?
 - **Can anonymity ever be lifted?** For example, a snipe overturned with 3
@@ -584,12 +587,6 @@ Measured from the tables over the first 4–6 weeks (no extra analytics):
   but makes snipes weaker.
 - **Weekly amnesty:** reset or hide snipes every Sunday, or keep them all-time
   like the leaderboard?
-- **Service-role key:** okay to add `SUPABASE_SERVICE_ROLE_KEY` to the server
-  environment? It's needed for anonymous uploads and photo cleanup.
-  The alternative is a database function that clears `owner_id` after a
-  browser upload, which avoids the key but relies on how Storage works inside.
-- **Server re-encode:** add `sharp` so the server removes EXIF too, or trust the
-  phone's canvas re-encode?
 - **AI check at all?** Worth adding the Anthropic key and SDK for a
   "does this show dishes?" hint, or wait until fake snipes are actually a
   problem?
