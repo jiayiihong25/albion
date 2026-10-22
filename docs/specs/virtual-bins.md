@@ -479,7 +479,7 @@ It opens a bottom sheet (reusing `src/app/fridge/sheet.tsx`) with:
 - the last photo (a thumbnail; tap to enlarge; members only), who took it, when,
   and the model's note and flags
 - the last 7 days as a tiny sparkline: readings as dots, emptyings as drops to
-  zero (phase 2)
+  zero (phase 5)
 - **Emptied it** (big), **Set level**, **Take a photo**, and in "⋯": Calibrate,
   Pause until…, and Thresholds (read-only in v1)
 
