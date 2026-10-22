@@ -1,12 +1,10 @@
 # Spec: Virtual Fridge
 
-Status: draft, **not started** · Owner: Jia Yi · Last updated: 2026-10-20
+Status: **built** (steps 1–8; step 9, dragging between compartments, is still to do) · Owner: Jia Yi · Last updated: 2026-10-21
 
-> **On hold:** don't start building until the site-wide layout PR (in progress
-> by another contributor) has merged. Once it lands, go through §8 (visual
-> design) and §12 (implementation plan) and adapt them to the new layout, nav
-> and styling conventions. Data-layer work (§4, §5, §7) doesn't depend on the
-> layout, but it should ship together with the UI.
+> The layout PR has merged. The fridge and home page now use the Dish duty
+> style (sage on cream, the "albion" top bar). Where the build ended up
+> different from the original plan, the section says so under **As built**.
 
 ## 1. Summary
 
@@ -117,8 +115,13 @@ full example email above as a fixture (see §12).
 
 - Lower-case the item name, strip punctuation, and collapse whitespace.
 - Find every keyword that appears in the name as a whole word or phrase.
-- **The longest keyword wins**, so `peeled garlic` (fridge, 14d) beats `garlic`
-  (pantry, 30d), and `enoki` beats `mushroom`.
+- **Multi-word phrases win**, so `peeled garlic` (fridge, 14d) beats `garlic`
+  (pantry, 30d). Between single words, **the one that appears last wins**,
+  because the food is usually the final word: "garlic **bread**", "apple
+  **juice**", "organic enoki **mushroom**".
+- *As built:* this replaces the first draft's "longest keyword wins" rule,
+  which picked `mushroom` over `enoki` purely on length and `garlic` over
+  `bread`. Plurals match too (`egg` → "eggs", `berry` → "berries").
 - No match: return `null`. The review step flags the item for a manual pick
   (§6).
 - Estimated `expires_at` = local "today" + the days for the item's location.
@@ -209,7 +212,9 @@ A small **"+ Add item"** form stays for one-off additions. It also runs through
 `matchShelfLife` so a manually added item gets an estimate when no date is
 entered.
 
-## 7. Data model changes (migration `0002_virtual_fridge.sql`)
+## 7. Data model changes (migration `0006_virtual_fridge.sql`)
+
+*As built:* the migration number is `0006`, since the layout PR added `0002`–`0005`. With the house sign-in now in place, it also sets permissions. Members can edit, move and finish any item. Members can't change who added an item or when it was added. A member can only delete rows from their own grocery import, and only within 15 minutes of adding them (that's how Undo works). Shelf lives are read-only for members. The seed has about 75 keywords.
 
 ```sql
 alter table fridge_items
@@ -400,7 +405,8 @@ Tapping a row opens the same item sheet as the fridge view.
 
 ## 11. Realtime sync
 
-- Subscribe to the `fridge_items` table on `/fridge` and on the home page:
+- *As built:* only `/fridge` subscribes. The home page works out its status on the server each time it loads. That's simpler, and the home page is a hub people pass through rather than one they leave open.
+- Subscribe to the `fridge_items` table on `/fridge`:
   `supabase.channel('fridge').on('postgres_changes', { event: '*', schema: 'public', table: 'fridge_items' }, reload)`.
 - On any event, re-run the existing `loadData()`. The data is small, so a full
   refetch is simpler than merging changes locally. Debounce it by ~300 ms so a
@@ -414,13 +420,13 @@ Tapping a row opens the same item sheet as the fridge view.
 Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
 (see `AGENTS.md`). This Next.js version (16.x) differs from older ones.
 
-1. **Migration + types:** `0002_virtual_fridge.sql`, seed data, type updates.
+1. **Migration + types:** `0006_virtual_fridge.sql`, seed data, type updates.
 2. **Pure logic + tests:** `grocery-parser.ts`, `shelf-life.ts`
    (including the fridge↔freezer date logic) and `expiry.ts`. Add a lightweight
    test runner (Vitest or `node --test` with `tsx`). Cover these cases:
    - the full example email gives 18 item lines, 19 rows (yogourt ×2), and the header is skipped
    - `—`, `–` and `-` price separators, and lines with no price
-   - longest-match wins (`peeled garlic` vs `garlic`, `enoki` vs `mushroom`)
+   - phrase beats word, then last word wins (`peeled garlic` vs `garlic`, `garlic bread`)
    - unknown item → `null`
    - moving to the freezer and back re-estimates the date; a manual date is
      kept
@@ -434,7 +440,7 @@ Before writing code, read the relevant guides in `node_modules/next/dist/docs/`
    stink lines, display ticker, and reduced-motion handling.
 7. **Realtime subscription** plus the door display "added by" flash.
 8. **Home page mini fridge, list view toggle,** and README updates (run
-   migration `0002`, new feature description).
+   migration `0006`, new feature description).
 9. *(Phase 2)* Drag between compartments.
 
 Steps 1–5 give a working, good-looking fridge. Step 6 is where it comes to life,

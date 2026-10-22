@@ -1,0 +1,50 @@
+/* The page frame shared by Home and the Fridge, matching the Dish duty design. */
+.page {
+  --ink: #25382e;
+  --muted: #757b70;
+  --line: #e4e5db;
+  min-height: 100vh;
+  background: #f8f8f2;
+  color: var(--ink);
+  font-family: var(--font-geist-sans), sans-serif;
+  color-scheme: light;
+}
+.shell { max-width: 1640px; margin: 0 auto; padding: 0 48px; }
+.page button, .page a, .page input, .page select, .page textarea { -webkit-tap-highlight-color: transparent; }
+.page button { cursor: pointer; }
+.page button:disabled { cursor: default; }
+.page button:focus-visible, .page a:focus-visible, .page input:focus-visible, .page select:focus-visible, .page textarea:focus-visible {
+  outline: 3px solid #467e58;
+  outline-offset: 3px;
+}
+.nav { display: flex; align-items: center; justify-content: space-between; padding: 27px 0; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 680; letter-spacing: -1px; text-decoration: none; }
+.brandDivider { color: #bcc1b5; font-weight: 400; margin: 0 7px; }
+.brandSection { font-size: 13px; letter-spacing: 0; font-weight: 450; color: var(--muted); }
+.navActions { display: flex; align-items: center; gap: 24px; }
+.navLink { display: flex; gap: 10px; align-items: center; font-size: 13px; text-decoration: none; }
+.navLink:hover { text-decoration: underline; }
+.header { padding: 48px 0 32px; display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+.eyebrow { font-size: 10px; line-height: 1.5; letter-spacing: 1.7px; font-weight: 650; color: var(--muted); }
+.header h1 { font-size: clamp(44px, 5vw, 66px); line-height: 1.1; letter-spacing: -3px; font-weight: 570; margin: 12px 0 13px; }
+.header h1 span { color: #71a26e; }
+.subtitle { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.houseTag { display: flex; align-items: center; gap: 9px; font-size: 9px; font-weight: 600; letter-spacing: 1.4px; padding-top: 27px; white-space: nowrap; }
+.houseTag > span { height: 6px; width: 6px; border-radius: 50%; background: #709366; }
+.footer { display: flex; justify-content: space-between; gap: 15px; color: #929889; font-size: 9px; padding: 32px 0 30px; margin-top: 34px; border-top: 1px solid var(--line); }
+
+@media (max-width: 1100px) { .shell { padding: 0 28px; } }
+@media (max-width: 760px) {
+  .shell { padding: 0 22px; }
+  .nav { padding: 20px 0; }
+  .header { padding-top: 32px; padding-bottom: 26px; }
+  .header h1 { letter-spacing: -2px; }
+  .houseTag { display: none; }
+}
+@media (max-width: 400px) {
+  .navActions { gap: 13px; }
+  .brandSection, .brandDivider { display: none; }
+  .navLink span { display: none; }
+  .shell { padding: 0 16px; }
+  .footer { flex-direction: column; gap: 6px; }
+}

@@ -34,7 +34,22 @@
 .error:not(:empty), .message:not(:empty) { margin-top: 12px; }
 .formNote { text-align: center; font-size: 9px; line-height: 1.8; color: #949c89; margin-top: 17px; }
 .footer { border-top: 1px solid #e3e7d9; padding-top: 21px; display: flex; justify-content: space-between; font-size: 9px; color: #939c87; }
+.hint { font-size: 10px; color: #949c89; margin-top: 7px; }
+.switchMode { text-align: center; font-size: 11px; color: #7e8774; margin-top: 22px; padding-top: 18px; border-top: 1px solid #ebeee3; }
+.switchMode button { color: #304d36; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.switchMode button:focus-visible { outline: 2px solid #657d4e; outline-offset: 3px; border-radius: 3px; }
+.joinContent { min-height: calc(100vh - 180px); display: grid; place-items: center; padding: 48px 0; }
+.joinContent > .card { width: min(100%, 520px); }
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; border: 0; margin: 0 0 22px; padding: 0; min-width: 0; }
+.people legend { font-size: 11px; font-weight: 550; margin-bottom: 10px; padding: 0; }
+.person { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px 12px; border: 1px solid #dce1d1; border-radius: 12px; background: #fffef9; cursor: pointer; font-size: 11px !important; font-weight: 550; margin: 0 !important; transition: border-color 150ms ease, background 150ms ease, transform 150ms ease; }
+.person:hover { border-color: #b7c5a8; }
+.person input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.person img, .personInitial { width: 52px; height: 52px; border-radius: 50%; }
+.personInitial { display: grid; place-items: center; background: #e7eedf; color: #304d36; font-size: 20px; }
+.person:has(input:checked) { border-color: #304d36; background: #eef3e7; transform: translateY(-2px); box-shadow: 0 0 0 1px #304d36; }
+.person:has(input:focus-visible) { outline: 2px solid #657d4e; outline-offset: 3px; }
 @media (max-width: 900px) { .content { gap: 42px; } .card { padding: 28px; } .housemates { gap: 10px; } .housemates img { width: 37px; height: 37px; } }
 @media (max-width: 700px) { .shell { padding: 25px 22px; } .content { grid-template-columns: 1fr; gap: 32px; padding: 42px 0; } .story h1 { font-size: 43px; letter-spacing: -1.8px; } .story h1 br { display: none; } .intro { font-size: 12px; max-width: 100%; margin-top: 17px; } .housemates { gap: 15px; margin-top: 24px; } .housemates img { width: 39px; height: 39px; } .housemates span { font-size: 8px; } .together { display: none; } .card { padding: 27px; } .form input:not([type="hidden"]) { font-size: 16px; } .footer { font-size: 8px; gap: 12px; } }
 @media (max-width: 380px) { .shell { padding-left: 16px; padding-right: 16px; } .housemates { gap: 12px; } .housemates img { width: 36px; height: 36px; } .card { padding: 23px; } }
-@media (prefers-reduced-motion: reduce) { .submit { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .submit, .person { transition: none; } .person:has(input:checked) { transform: none; } }

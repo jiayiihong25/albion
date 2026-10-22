@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { safeReturnPath } from "@/lib/auth-validation";
+import { joinPath, safeReturnPath } from "@/lib/auth-validation";
 import type { Roommate } from "@/lib/types";
 
 export const getHouseAccess = cache(async () => {
@@ -19,9 +19,10 @@ export const getHouseAccess = cache(async () => {
 export async function requireHouseMember(next: string) {
   const access = await getHouseAccess();
   if (!access.member) {
+    // A signed-in account that hasn't claimed a housemate picks who they are first.
+    if (access.authenticated && !access.error) redirect(joinPath(next));
     const query = new URLSearchParams({ next: safeReturnPath(next) });
     if (access.error) query.set("error", access.error);
-    else if (access.authenticated) query.set("error", "not-a-member");
     redirect(`/login?${query}`);
   }
   return access.member;

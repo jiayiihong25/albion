@@ -40,3 +40,6 @@ supabase/*.local.sql
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# raw food illustrations, before `npm run food-art`
+/art/

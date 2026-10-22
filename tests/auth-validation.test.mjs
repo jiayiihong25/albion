@@ -18,3 +18,18 @@ test("email inputs normalize case and surrounding whitespace without accepting m
     assert.equal(normalizeEmail(value), null);
   }
 });
+
+test("new passwords need 8 characters and fit Supabase's 72-byte limit", () => {
+  const { newPasswordProblem } = require("../src/lib/auth-validation.ts");
+  assert.equal(newPasswordProblem("radish-42"), null);
+  for (const value of ["", "short", null, 42, "a".repeat(73), "🥬".repeat(19)]) assert.notEqual(newPasswordProblem(value), null);
+});
+
+test("joining keeps the safe return path, and every claim problem has its own message", () => {
+  const { joinPath, joinProblem } = require("../src/lib/auth-validation.ts");
+  assert.equal(joinPath("/fridge"), "/join?next=%2Ffridge");
+  assert.equal(joinPath("https://example.com"), "/join?next=%2Fdishes");
+  const messages = ["wrong-code", "too-many-tries", "taken", "joining-off"].map(joinProblem);
+  assert.equal(new Set(messages).size, 4);
+  assert.match(joinProblem("something-else"), /couldn’t add you/);
+});

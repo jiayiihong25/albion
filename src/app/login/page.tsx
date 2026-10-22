@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { DISH_ROTATION } from "@/lib/dish-calendar";
 import { getHouseAccess } from "@/lib/house-member";
-import { safeReturnPath } from "@/lib/auth-validation";
-import { LoginForm } from "./login-form";
+import { joinPath, safeReturnPath } from "@/lib/auth-validation";
+import { AuthPanel } from "./login-form";
 import styles from "./login.module.css";
 import { HouseArt } from "@/components/house-art";
 
@@ -15,10 +15,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const next = safeReturnPath(params.next);
   const access = await getHouseAccess();
   if (access.member) redirect(next);
+  // Signed in but not a housemate yet: pick who you are.
+  if (access.authenticated && !access.error) redirect(joinPath(next));
   const configured = access.error !== "configuration";
   const error = !configured ? "Add the Supabase URL and public key to .env.local, then restart the app."
-    : access.error === "membership-setup" || params.error === "membership-setup" ? "House accounts are being connected. Ask Kevin to finish the member setup."
-      : access.authenticated || params.error === "not-a-member" ? "This account isn’t linked to a house member. Sign in with your approved email." : "";
+    : access.error === "membership-setup" || params.error === "membership-setup" ? "House accounts are being connected. Ask Kevin to finish the member setup." : "";
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
@@ -34,9 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <section className={styles.card} aria-labelledby="login-heading">
             <div className={styles.doorArt}><HouseArt name="house" size={88} /></div>
             <p className={styles.eyebrow}>YOUR HOUSE, YOUR PEOPLE</p>
-            <h2 id="login-heading">Welcome home.</h2>
-            <p className={styles.cardIntro}>Sign in with the email and password linked to your house account.</p>
-            <LoginForm next={next} initialError={error} configured={configured} />
+            <AuthPanel next={next} initialError={error} configured={configured} />
           </section>
         </div>
         <footer className={styles.footer}><span>A little more together.</span><span>Made for the Albion house.</span></footer>

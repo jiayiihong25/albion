@@ -1,42 +1,79 @@
 import Link from "next/link";
 import { requireHouseMember } from "@/lib/house-member";
-import { MemberMenu } from "@/components/member-menu";
+import { createClient } from "@/lib/supabase/server";
+import { formatCalendarDate, houseToday, scheduledRoommate } from "@/lib/dish-calendar";
+import { freshness } from "@/lib/expiry";
+import { HouseNav } from "@/components/house-nav";
 import { HouseArt } from "@/components/house-art";
+import { Avatar } from "./dishes/avatar";
+import shell from "@/components/house-shell.module.css";
+import styles from "./home.module.css";
+
+async function fridgeStatus(today: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("fridge_items").select("expires_at").is("consumed_at", null);
+  if (error) return null;
+  const states = data.map((item) => freshness(item.expires_at, today));
+  return {
+    total: data.length,
+    expired: states.filter((state) => state === "expired").length,
+    soon: states.filter((state) => state === "today" || state === "soon").length,
+  };
+}
 
 export default async function Home() {
   const member = await requireHouseMember("/");
+  const today = houseToday();
+  const onDishes = scheduledRoommate(today);
+  const fridge = await fridgeStatus(today);
+  const mood = !fridge || fridge.total === 0 ? "😶" : fridge.expired ? "🤢" : fridge.soon ? "😬" : "😊";
+  const fridgeLine = !fridge ? { tone: "", title: "Open the fridge", detail: "See what’s inside" }
+    : fridge.expired ? { tone: styles.statusRed, title: `${fridge.expired} expired${fridge.soon ? ` · ${fridge.soon} to use soon` : ""}`, detail: "Time for a quick clear-out" }
+    : fridge.soon ? { tone: styles.statusAmber, title: `${fridge.soon} to use soon`, detail: "Eat these first" }
+    : { tone: "", title: fridge.total ? "All good" : "The fridge is bare", detail: fridge.total ? `${fridge.total} things, all fresh` : "Back from the store? Add the grocery run" };
+
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-8 p-6 py-16">
-      <div className="flex justify-end"><MemberMenu member={member} /></div>
-      <div>
-        <h1 className="flex items-center gap-4 text-3xl font-bold"><HouseArt name="house" size={80} />House Tracker</h1>
-        <p className="mt-2 text-neutral-500">
-          Dishes, fridge, and everything else the six of us need to keep track of.
-        </p>
-      </div>
+    <main className={shell.page}>
+      <div className={shell.shell}>
+        <HouseNav member={member} section="home" />
+        <header className={shell.header}>
+          <div><p className={shell.eyebrow}>{formatCalendarDate(today, { weekday: "long", month: "long", day: "numeric" }).toUpperCase()}</p><h1>Hey, {member.name}<span>.</span></h1><p className={shell.subtitle}>Dishes, fridge, and everything else the six of us need to keep track of.</p></div>
+          <span className={shell.houseTag}><span /> SIX PEOPLE. ONE HOUSE.</span>
+        </header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Link
-          href="/dishes"
-          className="rounded-lg border p-6 transition-colors duration-100 ease-linear hover:bg-neutral-50"
-        >
-          <HouseArt name="dishes" size={80} /><h2 className="mt-3 text-xl font-semibold">Dish Duty</h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            See the weekly rotation and check in with a photo of the clean sink.
-          </p>
-        </Link>
-        <Link
-          href="/fridge"
-          className="rounded-lg border p-6 transition-colors duration-100 ease-linear hover:bg-neutral-50"
-        >
-          <HouseArt name="fridge" size={80} /><h2 className="mt-3 text-xl font-semibold">Fridge Management</h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            Track what&apos;s in the fridge and when it expires.
-          </p>
-        </Link>
-      </div>
+        <div className={styles.cards}>
+          <Link href="/dishes" className={styles.card}>
+            <div className={styles.cardTop}>
+              <div><p className={styles.eyebrow}>A CLEAN KITCHEN</p><h2>Dish duty<span>.</span></h2><p className={styles.cardCopy}>The weekly rotation. Check in with a photo of the clean sink.</p></div>
+              <HouseArt name="dishes" size={104} />
+            </div>
+            <div className={styles.status}>
+              <span className={styles.avatarRow}><Avatar name={onDishes?.name} /></span>
+              <span><strong>{onDishes ? onDishes.name === member.name ? "You’re up today" : `${onDishes.name}’s on today` : "Shared Sunday"}</strong><small>{onDishes ? "Leave the sink better than you found it" : "Anyone can take this one"}</small></span>
+              <span className={styles.go}>Dish duty →</span>
+            </div>
+          </Link>
 
-      <p className="text-xs text-neutral-400">More house tasks coming soon.</p>
+          <Link href="/fridge" className={styles.card}>
+            <div className={styles.cardTop}>
+              <div><p className={styles.eyebrow}>KEEP IT FRESH</p><h2>The fridge<span>.</span></h2><p className={styles.cardCopy}>Unpack a grocery run, see what’s about to turn, and tick off what you eat.</p></div>
+              <span className={styles.miniFridge} aria-hidden="true">
+                <span className={styles.miniFreezer} />
+                <span className={styles.miniDoor}><span className={styles.miniDisplay}><span>{mood}</span><small>{fridge ? `${fridge.soon + fridge.expired} USE SOON` : "— —"}</small></span></span>
+                <span className={styles.miniFeet}><i /><i /></span>
+              </span>
+            </div>
+            <div className={`${styles.status} ${fridgeLine.tone}`}>
+              <span style={{ fontSize: 22 }} aria-hidden="true">{mood}</span>
+              <span><strong>{fridgeLine.title}</strong><small>{fridgeLine.detail}</small></span>
+              <span className={styles.go}>Open it →</span>
+            </div>
+          </Link>
+        </div>
+
+        <div className={styles.more}><HouseArt name="shared" size={44} /><span><strong>More house tasks coming soon.</strong>Chores, bills, and whatever else the six of us forget.</span></div>
+        <footer className={shell.footer}><span>Good housemates leave a clean sink and an empty leftovers shelf.</span><span>House time · Toronto</span></footer>
+      </div>
     </main>
   );
 }

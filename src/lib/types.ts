@@ -19,6 +19,10 @@ export type DishCompletion = {
   photo_path: string | null;
 };
 
+export type FridgeLocation = "fridge" | "freezer" | "pantry" | "household";
+export type FridgeZone = "shelf" | "door" | "crisper";
+export type ExpirySource = "estimated" | "manual" | "none";
+
 export type FridgeItem = {
   id: string;
   name: string;
@@ -28,4 +32,18 @@ export type FridgeItem = {
   notes: string | null;
   consumed_at: string | null;
   created_at: string;
+  location: FridgeLocation;
+  expiry_source: ExpirySource;
+  icon: string | null;
+  zone: FridgeZone | null;
+  import_batch_id: string | null;
+};
+
+export type ShelfLifeDefault = {
+  keyword: string;
+  location: FridgeLocation;
+  shelf_life_days: number | null;
+  freezer_days: number | null;
+  icon: string | null;
+  zone: FridgeZone | null;
 };
