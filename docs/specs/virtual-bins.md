@@ -14,7 +14,10 @@ full the real ones are, and that remind the house when one needs to go out:
 
 - **Part of the house website:** a new `/bins` page next to Dishes and the
   Fridge, with the same login, nav and home-page card as the rest of the
-  site. Not a separate app.
+  site. Not a separate app. It deploys with the rest of the site on Vercel,
+  and its data lives in its own tables (`bins`, `bin_readings`,
+  `bin_emptyings`, …) in the house's existing Supabase project, tracked the
+  same way as dishes and the fridge.
 - **Two little illustrated bins:** the page shows a garbage can and a
   compost caddy, in the same clay style and layout as the virtual fridge. Each one has a fill level
   that rises and falls with a soft animation. Recycling can be added later as a
@@ -373,9 +376,11 @@ and server-side sending with `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` /
   header `Authorization: Bearer ${BINS_CRON_SECRET}` and uses a server-only
   Supabase service-role client (`SUPABASE_SERVICE_ROLE_KEY`, never sent to the
   browser).
-- Called every 30 minutes by `pg_cron` + `pg_net` (set up in the migration but
-  disabled until the URL and secret are set, as described in the README). If
-  the app ends up on Vercel, Vercel Cron can call the same route instead.
+- The site is on **Vercel**. Vercel Cron can call the route, but on the free
+  Hobby plan it only runs once a day, which is too slow for reminders. So
+  the default is Supabase `pg_cron` + `pg_net` calling the Vercel URL every
+  30 minutes (set up disabled until the URL and secret are set). On Vercel
+  Pro, Vercel Cron can call the same route instead.
 - Each tick: retries `pending` estimates, computes `currentLevel` for each bin,
   works out which reminders are due (below), sends pushes, records them in
   `bin_reminders`, sends the photo nudge, and deletes expired photos
@@ -642,7 +647,10 @@ insert into public.bins (kind, name, sort, max_days, default_rate_per_day) value
 
 `env.example` gains `ANTHROPIC_API_KEY`, `BIN_VISION_MODEL`,
 `BIN_VISION_ESCALATION_MODEL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase's
-secret key, so only the server can record an AI estimate; §17). Phase 4 adds
+secret key, so only the server can record an AI estimate). These are set in
+Vercel under Project → Settings → Environment Variables (and in
+`.env.local` for local dev), never with a `NEXT_PUBLIC_` prefix. **Decided:**
+they're added when phase 2 is built, not now. Phase 4 adds
 `BINS_CRON_SECRET`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and
 `VAPID_SUBJECT`.
 
@@ -790,13 +798,6 @@ Measured after 4 weeks, from the tables (no analytics SDK):
 - **Is the house OK with Anthropic** processing photos of the bins? The
   alternative is manual-only mode (slider, no photo), which still gives
   extrapolation and reminders.
-- **Hosting (only for phone notifications):** where the website runs (e.g.
-  Vercel) decides how the scheduled check works, and push needs a stable
-  HTTPS address. Not needed for v1.
-- **Supabase secret key:** recording AI estimates so members can't fake them
-  needs Supabase's secret (service-role) key on the website's server (Project
-  Settings → API keys). The same question is in the sink-check spec; one
-  answer covers both.
 - **Photo nudge time:** is 21:00 right for the "Snap the bins before bed?"
   card?
 - **Thresholds:** 70/90 to start, editable in Supabase. Should there be an
