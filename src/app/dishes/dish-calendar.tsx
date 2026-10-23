@@ -7,7 +7,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { DishCompletion, Roommate } from "@/lib/types";
 import {
-  addDays, DISH_ROTATION, dishStatus, formatCalendarDate, HOUSE_TIME_ZONE,
+  addDays, calendarDate, DISH_ROTATION, dishStatus, formatCalendarDate, HOUSE_TIME_ZONE,
   houseToday, scheduledRoommate, startOfWeek, weekLabel,
 } from "@/lib/dish-calendar";
 import styles from "./dishes.module.css";
@@ -17,6 +17,8 @@ import { MemberMenu } from "@/components/member-menu";
 import { HouseArt } from "@/components/house-art";
 import { DISH_PHOTO_TYPES, saveDishCheckIn, validateDishPhoto } from "@/lib/dish-photos";
 import { DishPhoto } from "./dish-photo";
+import { AnimatePresence } from "motion/react";
+import { DishShareSheet, type ShareRequest } from "./share-sheet";
 
 function subscribeToDate(onChange: () => void) {
   const timer = window.setInterval(onChange, 30_000);
@@ -39,7 +41,7 @@ type WeekData = {
   needsMigration: string | null;
 };
 
-export default function DishCalendar({ member }: { member: Roommate }) {
+export default function DishCalendar({ member, initialDay }: { member: Roommate; initialDay?: string }) {
   const supabase = useMemo(() => isSupabaseConfigured ? createClient() : null, []);
   const today = useSyncExternalStore(subscribeToDate, houseToday, serverDate);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -53,6 +55,8 @@ export default function DishCalendar({ member }: { member: Roommate }) {
   const [saveStage, setSaveStage] = useState<"uploading" | "saving">("uploading");
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [shareRequest, setShareRequest] = useState<ShareRequest | null>(null);
+  const openedInitialDay = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const photoRequest = useRef(0);
   const submitting = useRef(false);
@@ -111,6 +115,16 @@ export default function DishCalendar({ member }: { member: Roommate }) {
     window.addEventListener("focus", refresh);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, []);
+
+  // Shared links open the day they're about.
+  useEffect(() => {
+    if (!today || !initialDay || openedInitialDay.current || initialDay > today) return;
+    openedInitialDay.current = true;
+    const weeks = Math.round((calendarDate(startOfWeek(initialDay)).getTime() - calendarDate(startOfWeek(today)).getTime()) / (7 * 86_400_000));
+    setWeekOffset(weeks);
+    setSelected(initialDay);
+    scrollToCheckIn();
+  }, [today, initialDay]);
 
   useEffect(() => {
     const url = photo?.url;
@@ -207,6 +221,7 @@ export default function DishCalendar({ member }: { member: Roommate }) {
         : previous);
       setNotice(`${selectedRoommate.name} checked in for ${formatCalendarDate(selectedDate, { weekday: "long", month: "short", day: "numeric" })}. Dishes done! Photo saved.`);
       setScoreRevision((value) => value + 1);
+      setShareRequest({ day: selectedDate, washer: selectedRoommate.name, justCheckedIn: true, photo: photo.file, photoPath: completion.photo_path });
       setPhoto(null);
       if (fileInput.current) fileInput.current.value = "";
     } catch {
@@ -274,7 +289,7 @@ export default function DishCalendar({ member }: { member: Roommate }) {
           <div className={styles.checkInDetails}><p className={styles.eyebrow}>THE DAILY RESET</p><h2 id="check-in-heading">{selectedCompletion ? "Clean sink. Nice work." : isFuture ? "A clean slate ahead." : "Done with the dishes?"}</h2><p className={styles.selectedDate}><HouseArt name="calendar" size={25} />{formatCalendarDate(selectedDate, { weekday: "long", month: "long", day: "numeric" })}</p><p className={styles.checkInCopy}>{selectedCompletion ? `${completedBy} took care of this one. One less thing for the house to think about.` : isFuture ? `${assigned?.name ?? "Everyone"} is on the roster. Come back on the day to attach a photo and check in.` : "Wash up, wipe down, and snap a quick photo. Submit it to mark this day washed and keep a photo in the house history."}</p><div className={styles.assignment}><Avatar name={assigned?.name} /><div><small>ASSIGNED TO</small><strong>{assigned?.name ?? "Everyone · shared Sunday"}</strong></div></div><p className={styles.privacyNote}><HouseArt name="camera" size={26} /> Photos are saved privately with each check-in for house members to view.</p></div>
 
           <div className={styles.checkInAction}>
-            {selectedCompletion ? <div className={styles.completedPanel}>{!selectedCompletion.photo_path && <span className={styles.bigCheck}><HouseArt name="clean-sink" size={128} /></span>}<span className={styles.eyebrow}>CHECKED IN</span><h3>This day is in the green.</h3><p>Washed by <strong>{completedBy}</strong></p><p className={styles.completionTime}>{new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: HOUSE_TIME_ZONE }).format(new Date(selectedCompletion.created_at))} · Toronto time</p><DishPhoto photoPath={selectedCompletion.photo_path} /></div>
+            {selectedCompletion ? <div className={styles.completedPanel}>{!selectedCompletion.photo_path && <span className={styles.bigCheck}><HouseArt name="clean-sink" size={128} /></span>}<span className={styles.eyebrow}>CHECKED IN</span><h3>This day is in the green.</h3><p>Washed by <strong>{completedBy}</strong></p><p className={styles.completionTime}>{new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: HOUSE_TIME_ZONE }).format(new Date(selectedCompletion.created_at))} · Toronto time</p><DishPhoto photoPath={selectedCompletion.photo_path} /><button type="button" className={`${styles.secondaryButton} ${styles.shareButton}`} onClick={() => setShareRequest({ day: selectedCompletion.performed_on, washer: completedBy, justCheckedIn: false, photo: null, photoPath: selectedCompletion.photo_path })}>Share to the group chat</button></div>
               : isFuture ? <div className={styles.futurePanel}><HouseArt name="calendar" size={96} /><h3>Not quite time yet.</h3><p>Future days stay grey until their turn.<br />Check-ins open on the day.</p><button type="button" className={styles.secondaryButton} onClick={() => changeWeek(0)}>Back to today </button></div>
               : <form onSubmit={submitWash} className={styles.form}>
                 <div className={styles.formHeading}><h3>Make it official</h3><span>PHOTO REQUIRED</span></div>
@@ -294,6 +309,7 @@ export default function DishCalendar({ member }: { member: Roommate }) {
         </div>
         <div className={styles.sidebar}><DishLeaderboard refreshKey={scoreRevision + reload} /></div>
         </div>
+        <AnimatePresence>{shareRequest && <DishShareSheet key={shareRequest.day} request={shareRequest} onClose={() => setShareRequest(null)} />}</AnimatePresence>
         <footer className={styles.footer}><span>Good housemates leave a clean sink.</span><span>House time · Toronto</span></footer>
       </div>
     </main>

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeReturnPath } from "@/lib/auth-validation";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -28,7 +29,8 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims && request.nextUrl.pathname !== "/login") {
     const destination = new URL("/login", request.url);
-    destination.searchParams.set("next", request.nextUrl.pathname);
+    const withQuery = request.nextUrl.pathname + request.nextUrl.search;
+    destination.searchParams.set("next", safeReturnPath(withQuery) === withQuery ? withQuery : request.nextUrl.pathname);
     const redirect = NextResponse.redirect(destination);
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     redirect.headers.set("Cache-Control", "private, no-store");
