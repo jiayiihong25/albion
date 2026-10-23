@@ -46,6 +46,10 @@ A fun house management app for tracking dishes washed, fridge inventory, and mor
    [supabase/AUTH_SETUP.md](supabase/AUTH_SETUP.md). New members then create an
    account on the login page and claim their housemate with the code.
 
+10. Apply `supabase/migrations/0008_dish_shares.sql` for share links. It adds
+    the `dish_shares` table and a small public `dish-share-teasers` bucket. Safe
+    to re-run.
+
 ### Running everything locally
 
 With Docker running, `npx supabase start` brings up a local Supabase on port
@@ -68,6 +72,11 @@ Authentication, and link it to a roommate as described in
   1 point for a late check-in, and 0 for incomplete days. Ties share a rank.
   Six generated character portraits are in `public/avatars/`, with their
   prompts documented there.
+  After a check-in, a sheet offers to share the day to the group chat. The
+  link (`/s/<token>`) opens without signing in and shows a rich preview in
+  iMessage: a heavily blurred copy of the photo, who washed, and the points.
+  The blur is made on the phone, so the real photo never leaves the private
+  bucket. Any washed day can be shared later from the calendar.
 - **The fridge** (`/fridge`) — an illustrated fridge, freezer, pantry and
   household box ([spec](docs/specs/virtual-fridge.md)). Paste a grocery email
   to unpack a whole run at once. Each item gets a spot and a rough

@@ -6,6 +6,8 @@ export function normalizeEmail(value: unknown) {
 
 /** Only known house pages are allowed as post-login destinations. */
 export function safeReturnPath(value: unknown) {
+  // A shared dish link returns to its day after sign-in.
+  if (typeof value === "string" && /^\/dishes\?day=\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   return typeof value === "string" && ["/", "/dishes", "/fridge"].includes(value) ? value : "/dishes";
 }
 
