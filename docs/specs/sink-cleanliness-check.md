@@ -12,16 +12,21 @@ Status: **proposed** (nothing built yet) · Owner: Jia Yi · Last updated: 2026-
 Today a dish check-in is "upload any photo, the day turns green". Nobody looks
 at the photo unless they go and open it. This adds a **sink check by vote**:
 
-- **The check-in still counts straight away.** Nothing waits for votes, so
-  the day turns green and the points land the moment you check in, exactly as
-  now.
-- **The other housemates vote on the photo:** each check-in shows up for the
-  other five as "Is the sink clean?" with the photo next to the house's
-  reference photo of a clean sink. They tap **👍 Clean** or **👎 Not clean**,
-  with an optional short note ("pot left in the left basin").
-- **The house decides:** 3 votes either way settle it. A "Not clean" result
-  puts a badge on the day and costs the washer points (§5). Otherwise it's
-  marked **Clean ✓**.
+- **1. Upload the photo.** The washer checks in with a photo of the sink, as
+  today. The check-in counts straight away and nothing waits for votes.
+- **2. Share it to the group chat.** Right after the upload, the washer gets
+  a share message to send to the house group chat (that share feature is
+  being built separately, §5). The message links straight to the vote.
+- **3. Everyone else rates it:** the other five open the link and see the
+  photo (next to the house's reference photo of a clean sink, if there is
+  one) and tap **👍 Clean** or **👎 Not clean**, with an optional short note
+  ("pot left in the left basin").
+- **Anonymous:** nobody, including the washer, can see who voted which way.
+  Only the tally and the notes are shown.
+- **The house decides:** 3 votes either way settle it. Otherwise "Not clean"
+  needs **at least two 👎** and more 👎 than 👍. A "Not clean" result puts a
+  badge on the day and costs the washer points (§6). Otherwise it's marked
+  **Clean ✓**.
 - **You can fix it:** while the vote is open, the washer can clean up and add
   a new photo. That restarts the vote on the new photo.
 - **No AI:** no model, no API key, no cost, and no photos leave Supabase.
@@ -32,18 +37,19 @@ at the photo unless they go and open it. This adds a **sink check by vote**:
 | --- | --- |
 | Who judges | **The other housemates, by vote.** The AI check from the earlier draft is dropped |
 | Check-in | Counts immediately, as today (`submit_dish_check_in` doesn't change). The vote happens afterwards |
+| Flow | **Confirmed:** upload the photo (check-in) → share message to the group chat → everyone else rates it |
 | Who can vote | Every house member except the person who checked in. One vote each, which they can change while the vote is open |
-| Settling | First side to **3 votes** wins. Otherwise, when the **24 h** window closes, the side ahead wins. A tie or no votes means **Clean** (benefit of the doubt) |
-| "Not clean" result | A badge on the day, and the wash scores like a late one: **1 point instead of 3** (§5, to confirm) |
+| Settling | First side to **3 votes** wins. Otherwise, when the **24 h** window closes, it's **Not clean only with at least two 👎** and more 👎 than 👍. Anything else (one 👎, a tie, no votes) means **Clean** |
+| "Not clean" result | A badge on the day, and the wash scores like a late one: **1 point instead of 3** (§6, to confirm) |
 | Fixing it | The washer can add a new photo while the vote is open. Votes reset and the 24 h restarts. Allowed twice per day |
-| Reference photo | One to three photos of what "clean" looks like, uploaded by any member and shown next to every vote (§4) |
-| Who voted | Shown by name on the day, the same as the old dish votes (open question §11) |
-| Notifications | In-app only, like the rest of the site: a "Vote on the sink" card on `/dishes` and a line on the home page |
+| Reference photo | Optional. One to three photos of what "clean" looks like, uploaded by any member and shown next to every vote when there is one (§4) |
+| Who voted | **Confirmed: anonymous.** The database stores each voter so it can allow one vote each, but members only ever see the tally and the notes (§7) |
+| Notifications | The washer's share message in the group chat is the main nudge. In the site: a "Vote on the sink" card on `/dishes` and a line on the home page |
 | Scheduler | None. Expired votes are settled when someone loads a page, like the fridge and snipes |
 | Migration | `0008_sink_votes.sql` (renumbered at build time if another spec takes `0008` first) |
 
 Out of scope for now: AI checks, push or email, voting on other chores, and
-anonymous voting.
+building the share message itself (separate work).
 
 ## 3. Current state (what already exists)
 
@@ -74,18 +80,37 @@ anonymous voting.
 - Replacing a reference is visible to the house ("Added by Kevin · Oct 22").
 - Stored in a new private `sink-references` bucket.
 
-## 5. Voting and points
+## 5. Upload, then share
+
+1. The washer checks in with a photo (the existing `saveDishCheckIn` flow).
+   Without a photo there's nothing to vote on, which is already true: a
+   check-in requires one.
+2. When the upload succeeds, the success state shows a **Share to the group
+   chat** button. The share feature is being built in a separate thread; this
+   spec only needs two things from it:
+   - the message links to the vote: `/dishes?day=2026-10-23#vote`, which
+     opens that day's vote card after sign-in;
+   - it's offered right after a successful check-in.
+3. Voting opens as soon as the photo is uploaded. The app can't tell whether
+   the message was actually sent in the group chat, so it doesn't wait for
+   it. The share message is how people find out.
+4. If the washer skips sharing, the vote still shows up on `/dishes` and the
+   home page for everyone else.
+
+## 6. Voting and points
 
 ### The vote
 
-1. Someone checks in as today. The day turns green and their points count.
-2. The day gets a **"Vote open"** status and a `resolves_at` 24 h later.
-3. The other members see the vote card. Each picks 👍 or 👎 and can add a note
-   (up to 140 characters). They can change their vote until it settles.
-4. It settles as soon as one side has **3 votes**, or at `resolves_at`: the
-   side ahead wins, and a tie or no votes means Clean.
-5. **Clean:** the badge reads "Clean ✓ (4–0)". **Not clean:** "Not clean
-   (3–1)", with the notes listed under the photo.
+1. The day gets a **"Vote open"** status and a `resolves_at` 24 h after the
+   check-in.
+2. The other members open the shared link (or the card on `/dishes`). Each
+   picks 👍 or 👎 and can add a note (up to 140 characters). They can change
+   their vote until it settles.
+3. It settles as soon as one side has **3 votes**. Otherwise, at
+   `resolves_at`: **Not clean** if there are at least two 👎 and more 👎 than
+   👍; anything else is **Clean**. So a single 👎 is never enough on its own.
+4. **Clean:** the badge reads "Clean ✓ (4–0)". **Not clean:** "Not clean
+   (3–1)", with the notes listed under the photo. No names are shown.
 
 ### Points (to confirm)
 
@@ -105,7 +130,7 @@ anonymous voting.
   the 24 h. At most 2 new photos per day, so the vote can't be reset forever.
 - The original timing stays, so fixing it never makes the wash late.
 
-## 6. Data model (migration `0008_sink_votes.sql`)
+## 7. Data model (migration `0008_sink_votes.sql`)
 
 ```sql
 alter table public.dish_completions
@@ -138,14 +163,21 @@ create table public.sink_reference_photos (
 - **Existing check-ins:** set to `vote_status = 'clean'` by the migration, so
   past days and points don't change.
 - **New check-ins:** `submit_dish_check_in` sets `resolves_at = now() + 24h`.
-- **RLS:** members can read all three tables. Writes only go through
-  functions:
+- **Anonymity:** `dish_sink_votes` has RLS on with no policies and every
+  permission revoked from `anon` and `authenticated`, the same pattern as the
+  snipe spec. Members can't read `voter_id` at all. They read results through
+  `dish_sink_vote_summary(p_since date)`, a `security definer` function that
+  returns the 👍 / 👎 counts, the notes (without names) and a `my_vote` column
+  so you can see and change your own vote.
+- **RLS:** members can read `dish_completions` and `sink_reference_photos`.
+  Writes only go through functions:
 
 | Function | What it does |
 | --- | --- |
 | `vote_sink(p_performed_on, p_clean, p_note)` | Not your own day, only while open, only for the current photo round. Inserts or changes your vote, then settles it at 3 votes |
+| `dish_sink_vote_summary(p_since)` | Anonymous tallies and notes per day, plus your own vote |
 | `replace_dish_photo(p_performed_on, p_photo_path)` | Washer only, only while open, at most 2 times. Swaps the photo, deletes the votes, bumps `photo_round`, restarts `resolves_at` |
-| `settle_expired_sink_votes()` | Called on page load. Settles any open day past `resolves_at` |
+| `settle_expired_sink_votes()` | Called on page load. Settles any open day past `resolves_at` with the two-👎 rule |
 | `add_sink_reference(p_photo_path, p_caption)` / `retire_sink_reference(p_id)` | At most 3 active references |
 
 - **Scoring:** `buildDishLeaderboard` takes `vote_status` and scores a
@@ -154,7 +186,7 @@ create table public.sink_reference_photos (
   `photo_round` on `DishCompletion`, plus `DishSinkVote` and
   `SinkReferencePhoto`.
 
-## 7. UI
+## 8. UI
 
 All on `/dishes` (`dish-calendar.tsx`, `dishes.module.css`), plus one line on
 the home page.
@@ -163,24 +195,25 @@ the home page.
   vote they haven't cast: the photo and the reference side by side, 👍 / 👎,
   and a note field. Several open days stack, newest first.
 - **Home page:** the Dish duty card adds "1 sink to vote on →".
+- **Shared link:** `/dishes?day=…#vote` scrolls to that day's vote card.
 - **Completed day panel:** the badge (Vote open · 2–1 / Clean ✓ / Not clean),
-  who voted which way, the notes, and the time left. Your own vote can be
+  the anonymous notes, and the time left. Your own vote can be
   changed until it settles.
-- **Washer's view:** the running tally and notes, and **Add a new photo** while
-  it's open.
+- **Washer's view:** right after check-in, **Share to the group chat**. Then
+  the running tally and notes (no names), and **Add a new photo** while it's
+  open.
 - **Calendar cells:** a small ✓ or ⚠ next to the existing status, never colour
   alone.
 - **Leaderboard:** a "not clean" count next to on-time and late.
 - **Accessibility:** vote buttons have full labels ("Vote clean for Tuesday's
   sink"). Results are written in words.
 
-## 8. Edge cases
+## 9. Edge cases
 
 - **Shared Sunday:** whoever checks in is the washer for the vote, and
   everyone else votes.
-- **Only one or two people vote:** the side ahead at 24 h wins. A single 👎
-  with no 👍 makes it Not clean, which is why the washer is told straight away
-  and can fix it.
+- **Only one person votes 👎:** not enough. It stays Clean at 24 h, though the
+  washer still sees the note and can fix it.
 - **A voter changes their mind:** allowed until it settles. After that, it's
   final.
 - **Late check-in for an earlier day:** the vote still runs for 24 h from the
@@ -188,35 +221,31 @@ the home page.
 - **A housemate is away:** they just don't vote. Nothing waits on them.
 - **Two votes settle it at the same moment:** the vote function locks the day,
   so only one result is written.
-- **Someone votes 👎 on everything:** visible by name (§11), and the house can
-  see the pattern. No automatic limit in v1.
+- **Someone votes 👎 on everything:** votes are anonymous, so the house can't
+  see who. The two-👎 rule means one person can't make a day Not clean alone.
+  If it becomes a problem, a later phase can cap 👎 votes per person per week.
 
-## 9. Phased rollout
+## 10. Phased rollout
 
-1. **Phase 1:** migration, voting, settling, the vote card, badges and the home
-   page line. Points don't change yet ("trial"), so the house can see how
+1. **Phase 1:** migration, anonymous voting, settling, the vote card, the
+   shared-link landing, badges and the home page line. Points don't change yet ("trial"), so the house can see how
    votes go.
 2. **Phase 2:** the "not clean = 1 point" rule, the leaderboard count, and new
    photos.
 3. **Phase 3:** reference photos, if the house wants a shared standard to
    vote against.
 
-## 10. Success metrics
+## 11. Success metrics
 
 - **People vote:** at least 2 votes on 80% of check-ins.
 - **Cleaner sinks:** the share of "Not clean" results goes down over the first
   month.
-- **Fair:** fewer than 1 complaint a week about votes, and no one person casts
-  most of the 👎 votes.
+- **Fair:** fewer than 1 complaint a week about votes. (No one can see who
+  votes 👎, so this is checked only in the database, in aggregate.)
 
-## 11. Open questions
+## 12. Open questions
 
 - **Points:** does "Not clean" drop the wash to 1 point (the draft), 0, or only
   show a badge?
-- **Who voted:** show names (the draft, like the old dish votes), or keep
-  votes anonymous?
-- **3 votes or a majority?** With six people, 3 of the 5 possible voters
-  settles it early. Should one 👎 and nothing else really make it Not clean at
-  24 h, or should it need at least 2 votes?
-- **Reference photo:** you mentioned sending a photo of what clean looks like.
-  Should it be required before voting starts?
+- **Share step:** once the share feature is merged, confirm its link format
+  matches `/dishes?day=…#vote`.
