@@ -3,12 +3,14 @@
 -- the private bucket; link previews use a tiny blurred copy made on the phone.
 begin;
 
+-- One link per day per sender, so the washer's own link can speak in first person.
 create table if not exists public.dish_shares (
-  performed_on date primary key references public.dish_completions(performed_on) on delete cascade,
   -- 128 random bits, base64url: short enough for a text, too long to guess.
-  token text not null unique default rtrim(translate(encode(uuid_send(gen_random_uuid()), 'base64'), '+/', '-_'), '='),
-  created_by uuid references public.roommates(id) on delete set null,
-  created_at timestamptz not null default now()
+  token text primary key default rtrim(translate(encode(uuid_send(gen_random_uuid()), 'base64'), '+/', '-_'), '='),
+  performed_on date not null references public.dish_completions(performed_on) on delete cascade,
+  shared_by uuid not null references public.roommates(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (performed_on, shared_by)
 );
 alter table public.dish_shares enable row level security;
 -- No client policies: links are only made and read through the functions below.
@@ -27,9 +29,9 @@ begin
   if not exists (select 1 from public.dish_completions c where c.performed_on = p_performed_on) then
     raise exception 'Only washed days can be shared' using errcode = '22023';
   end if;
-  insert into public.dish_shares(performed_on, created_by) values (p_performed_on, member_id)
-    on conflict (performed_on) do nothing;
-  select s.token into result from public.dish_shares s where s.performed_on = p_performed_on;
+  insert into public.dish_shares(performed_on, shared_by) values (p_performed_on, member_id)
+    on conflict (performed_on, shared_by) do nothing;
+  select s.token into result from public.dish_shares s where s.performed_on = p_performed_on and s.shared_by = member_id;
   return result;
 end $$;
 revoke all on function public.create_dish_share(date) from public, anon;
@@ -37,12 +39,13 @@ grant execute on function public.create_dish_share(date) to authenticated;
 
 -- The one thing a signed-out visitor (or iMessage's link preview) can ask for.
 create or replace function public.get_dish_share(p_token text)
-returns table(washer text, performed_on date, on_time boolean, points integer, has_teaser boolean)
+returns table(washer text, performed_on date, on_time boolean, points integer, has_teaser boolean, shared_by_washer boolean)
 language sql stable security definer set search_path = '' as $$
   select r.name, c.performed_on,
     (c.created_at at time zone 'America/Toronto')::date = c.performed_on,
     case when (c.created_at at time zone 'America/Toronto')::date = c.performed_on then 3 else 1 end,
-    exists (select 1 from storage.objects o where o.bucket_id = 'dish-share-teasers' and o.name = s.token || '.jpg')
+    exists (select 1 from storage.objects o where o.bucket_id = 'dish-share-teasers' and o.name = s.token || '.jpg'),
+    s.shared_by = c.roommate_id
   from public.dish_shares s
   join public.dish_completions c on c.performed_on = s.performed_on
   join public.roommates r on r.id = c.roommate_id

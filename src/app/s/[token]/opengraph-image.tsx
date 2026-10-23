@@ -26,7 +26,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   const { token } = await params;
   const share = await getDishShare(token);
   const person = DISH_ROTATION.find((entry) => entry.name === share?.washer);
-  const copy = share ? dishShareCopy(share) : { title: "Dish duty at Albion", detail: "Six people. One sink." };
+  const copy = share ? dishShareCopy(share) : { cardTitle: "Dish duty at Albion", detail: "Six people. One sink." };
   const [photo, avatar, sink] = await Promise.all([
     share?.has_teaser ? teaser(token) : null,
     art(person ? `${person.name.toLowerCase()}.png` : "shared.png"),
@@ -47,7 +47,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
           <img alt="" src={avatar} width={140} height={140} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-          <div style={{ display: "flex", fontSize: 46, letterSpacing: -1 }}>{copy.title.replace(/\s*✓$/, "")}</div>
+          <div style={{ display: "flex", fontSize: 46, letterSpacing: -1 }}>{copy.cardTitle}</div>
           <div style={{ display: "flex", fontSize: 34, color: "#757b70", marginTop: 6 }}>{copy.detail}</div>
         </div>
         {share && <div style={{ width: 96, height: 96, borderRadius: 48, background: share.on_time ? "#71a26e" : "#c9a14a", display: "flex", alignItems: "center", justifyContent: "center" }}>

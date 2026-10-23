@@ -59,13 +59,24 @@ async function denied(query, args, code) {
   await db.exec("rollback to savepoint expected_failure; release savepoint expected_failure");
 }
 
-test("a member gets one stable, unguessable link per washed day", async () => {
+test("each sender gets one stable, unguessable link per washed day", async () => {
   await as(KEVIN);
   const token = await share("2020-01-06");
   assert.match(token, /^[A-Za-z0-9_-]{22}$/);
   assert.equal(await share("2020-01-06"), token);
   await as(JIAYI);
-  assert.equal(await share("2020-01-06"), token, "any housemate sharing the same day gets the same link");
+  assert.notEqual(await share("2020-01-06"), token, "a housemate sharing Kevin's day gets their own link");
+});
+
+test("a link knows whether the washer sent it", async () => {
+  await as(KEVIN);
+  const own = await share("2020-01-06");
+  await as(JIAYI);
+  const other = await share("2020-01-06");
+  await asAnon();
+  assert.equal((await lookup(own)).shared_by_washer, true);
+  assert.equal((await lookup(other)).shared_by_washer, false);
+  assert.equal((await lookup(other)).washer, "Kevin");
 });
 
 test("signed-out visitors see only the washer, day and score", async () => {
@@ -75,8 +86,8 @@ test("signed-out visitors see only the washer, day and score", async () => {
   await asAnon();
   const kevin = await lookup(onTime);
   assert.deepEqual({ ...kevin, performed_on: kevin.performed_on.toISOString().slice(0, 10) },
-    { washer: "Kevin", performed_on: "2020-01-06", on_time: true, points: 3, has_teaser: false });
-  assert.deepEqual(Object.keys(kevin), ["washer", "performed_on", "on_time", "points", "has_teaser"]);
+    { washer: "Kevin", performed_on: "2020-01-06", on_time: true, points: 3, has_teaser: false, shared_by_washer: true });
+  assert.deepEqual(Object.keys(kevin), ["washer", "performed_on", "on_time", "points", "has_teaser", "shared_by_washer"]);
   const jiayi = await lookup(late);
   assert.equal(jiayi.washer, "Jiayi");
   assert.equal(jiayi.on_time, false);

@@ -9,12 +9,16 @@ export type DishShare = {
   on_time: boolean;
   points: number;
   has_teaser: boolean;
+  shared_by_washer: boolean;
 };
 
-export function dishShareCopy(share: Pick<DishShare, "washer" | "performed_on" | "on_time" | "points">) {
+/** `title` is the text-message line: first person when the washer sent it. `cardTitle` always names them. */
+export function dishShareCopy(share: Pick<DishShare, "washer" | "performed_on" | "on_time" | "points" | "shared_by_washer">) {
   const day = formatCalendarDate(share.performed_on, { weekday: "short", month: "short", day: "numeric" });
+  const did = share.on_time ? "did the dishes" : "caught up on the dishes";
   return {
-    title: share.on_time ? `${share.washer} did the dishes ✓` : `${share.washer} caught up on the dishes ✓`,
+    title: `${share.shared_by_washer ? "I" : share.washer} ${did} ✓`,
+    cardTitle: `${share.washer} ${did}`,
     detail: `${day} · ${share.on_time ? "on time" : "checked in late"} · +${share.points}`,
   };
 }

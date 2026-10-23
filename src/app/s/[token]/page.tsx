@@ -42,7 +42,7 @@ export default async function SharePage({ params }: Props) {
           <span className={styles.avatar} style={{ background: person?.color ?? "#e8e5de" }}>
             <Image src={`/share/${person ? share.washer.toLowerCase() : "shared"}.png`} alt="" width={64} height={64} />
           </span>
-          <div><h1>{copy.title}</h1><p>{copy.detail}</p></div>
+          <div><h1>{copy.cardTitle} ✓</h1><p>{copy.detail}</p></div>
         </div>
         <Link href={`/dishes?day=${share.performed_on}`} className={styles.button}>See it in Albion</Link>
         <p className={styles.footnote}>albion · six people, one sink</p>
