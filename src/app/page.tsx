@@ -3,6 +3,7 @@ import { requireHouseMember } from "@/lib/house-member";
 import { createClient } from "@/lib/supabase/server";
 import { formatCalendarDate, houseToday, scheduledRoommate } from "@/lib/dish-calendar";
 import { freshness } from "@/lib/expiry";
+import { BIN_RUN_POINTS } from "@/lib/bin-runs";
 import { HouseNav } from "@/components/house-nav";
 import { HouseArt } from "@/components/house-art";
 import { Avatar } from "./dishes/avatar";
@@ -21,11 +22,21 @@ async function fridgeStatus(today: string) {
   };
 }
 
+async function binRunsToday(today: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("bin_runs").select("bin").eq("run_on", today);
+  return error ? null : new Set(data.map((run) => run.bin as string));
+}
+
 export default async function Home() {
   const member = await requireHouseMember("/");
   const today = houseToday();
   const onDishes = scheduledRoommate(today);
-  const fridge = await fridgeStatus(today);
+  const [fridge, binsOut] = await Promise.all([fridgeStatus(today), binRunsToday(today)]);
+  const binsLine = !binsOut ? { title: "Take out a full bin", detail: `+${BIN_RUN_POINTS} points with a photo` }
+    : binsOut.size >= 2 ? { title: "Both bins out today ✓", detail: "Garbage and compost are handled" }
+    : binsOut.size === 1 ? { title: binsOut.has("garbage") ? "Garbage is out ✓" : "Compost is out ✓", detail: `${binsOut.has("garbage") ? "Compost" : "Garbage"} full? +${BIN_RUN_POINTS} points` }
+    : { title: "Bin full? Take it out", detail: `+${BIN_RUN_POINTS} points each for garbage or compost` };
   const mood = !fridge || fridge.total === 0 ? "😶" : fridge.expired ? "🤢" : fridge.soon ? "😬" : "😊";
   const fridgeLine = !fridge ? { tone: "", title: "Open the fridge", detail: "See what’s inside" }
     : fridge.expired ? { tone: styles.statusRed, title: `${fridge.expired} expired${fridge.soon ? ` · ${fridge.soon} to use soon` : ""}`, detail: "Time for a quick clear-out" }
@@ -37,7 +48,7 @@ export default async function Home() {
       <div className={shell.shell}>
         <HouseNav member={member} section="home" />
         <header className={shell.header}>
-          <div><p className={shell.eyebrow}>{formatCalendarDate(today, { weekday: "long", month: "long", day: "numeric" }).toUpperCase()}</p><h1>Hey, {member.name}<span>.</span></h1><p className={shell.subtitle}>Dishes, fridge, and everything else the six of us need to keep track of.</p></div>
+          <div><p className={shell.eyebrow}>{formatCalendarDate(today, { weekday: "long", month: "long", day: "numeric" }).toUpperCase()}</p><h1>Hey, {member.name}<span>.</span></h1><p className={shell.subtitle}>Dishes, bins, the fridge, and everything else the six of us need to keep track of.</p></div>
           <span className={shell.houseTag}><span /> SIX PEOPLE. ONE HOUSE.</span>
         </header>
 
@@ -51,6 +62,18 @@ export default async function Home() {
               <span className={styles.avatarRow}><Avatar name={onDishes?.name} /></span>
               <span><strong>{onDishes ? onDishes.name === member.name ? "You’re up today" : `${onDishes.name}’s on today` : "Shared Sunday"}</strong><small>{onDishes ? "Leave the sink better than you found it" : "Anyone can take this one"}</small></span>
               <span className={styles.go}>Dish duty →</span>
+            </div>
+          </Link>
+
+          <Link href="/garbage" className={styles.card}>
+            <div className={styles.cardTop}>
+              <div><p className={styles.eyebrow}>TAKE IT OUT</p><h2>Bin runs<span>.</span></h2><p className={styles.cardCopy}>Full garbage or compost? Take it to the outside bin with a photo for {BIN_RUN_POINTS} points.</p></div>
+              <span style={{ fontSize: 72, lineHeight: 1 }} aria-hidden="true">🗑️</span>
+            </div>
+            <div className={styles.status}>
+              <span style={{ fontSize: 22 }} aria-hidden="true">{binsOut && binsOut.size >= 2 ? "✨" : "🍌"}</span>
+              <span><strong>{binsLine.title}</strong><small>{binsLine.detail}</small></span>
+              <span className={styles.go}>Bin runs →</span>
             </div>
           </Link>
 

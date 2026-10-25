@@ -239,7 +239,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
       <div className={styles.shell}>
         <nav className={styles.nav} aria-label="House navigation">
           <Link href="/" className={styles.brand}><HouseArt name="house" size={38} /> albion<span className={styles.brandDivider}>/</span><span className={styles.brandSection}>the house</span></Link>
-          <div className={styles.navActions}><Link href="/fridge" className={styles.navLink}><HouseArt name="fridge" size={25} /> Fridge</Link><MemberMenu member={member} /></div>
+          <div className={styles.navActions}><Link href="/garbage" className={styles.navLink}><span aria-hidden="true">🗑️</span> Bins</Link><Link href="/fridge" className={styles.navLink}><HouseArt name="fridge" size={25} /> Fridge</Link><MemberMenu member={member} /></div>
         </nav>
 
         <header className={styles.header}>

@@ -19,6 +19,17 @@ export type DishCompletion = {
   photo_path: string | null;
 };
 
+export type BinKind = "garbage" | "compost";
+
+export type BinRun = {
+  id: string;
+  bin: BinKind;
+  run_on: string;
+  roommate_id: string;
+  photo_path: string;
+  created_at: string;
+};
+
 export type FridgeLocation = "fridge" | "freezer" | "pantry" | "household";
 export type FridgeZone = "shelf" | "door" | "crisper";
 export type ExpirySource = "estimated" | "manual" | "none";
