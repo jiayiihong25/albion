@@ -9,6 +9,8 @@ import { HouseArt } from "@/components/house-art";
 import { Avatar } from "./dishes/avatar";
 import shell from "@/components/house-shell.module.css";
 import styles from "./home.module.css";
+import snipeStyles from "./snipes/snipes.module.css";
+import { cleanupNight, type SnipeInbox } from "@/lib/dish-snipes";
 
 async function fridgeStatus(today: string) {
   const supabase = await createClient();
@@ -28,11 +30,18 @@ async function binRunsToday(today: string) {
   return error ? null : new Set(data.map((run) => run.bin as string));
 }
 
+/** Snipes waiting on you. Nothing before migration 0011. */
+async function snipeInbox(): Promise<SnipeInbox> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("dish_snipe_inbox").maybeSingle<SnipeInbox>();
+  return data ?? { to_clean: 0, to_vote: 0, clean_by: null };
+}
+
 export default async function Home() {
   const member = await requireHouseMember("/");
   const today = houseToday();
   const onDishes = scheduledRoommate(houseDishDay());
-  const [fridge, binsOut] = await Promise.all([fridgeStatus(today), binRunsToday(today)]);
+  const [fridge, binsOut, sniped] = await Promise.all([fridgeStatus(today), binRunsToday(today), snipeInbox()]);
   const binsLine = !binsOut ? { title: "Take out a full bin", detail: `+${BIN_RUN_POINTS} points with a photo` }
     : binsOut.size >= 2 ? { title: "Both bins out today ✓", detail: "Garbage and compost are handled" }
     : binsOut.size === 1 ? { title: binsOut.has("garbage") ? "Garbage is out ✓" : "Compost is out ✓", detail: `${binsOut.has("garbage") ? "Compost" : "Garbage"} full? +${BIN_RUN_POINTS} points` }
@@ -52,6 +61,8 @@ export default async function Home() {
           <span className={shell.houseTag}><span /> SIX PEOPLE. ONE HOUSE.</span>
         </header>
 
+        {sniped.to_clean > 0 && sniped.clean_by && <Link href="/snipes" className={snipeStyles.banner}><span aria-hidden="true">📸</span><span><strong>You got sniped{sniped.to_clean > 1 ? ` ${sniped.to_clean} times` : ""}</strong> · clean it up before {cleanupNight(sniped.clean_by)} dish check-in and it disappears</span><span>See it →</span></Link>}
+        {sniped.to_vote > 0 && <Link href="/snipes" className={`${snipeStyles.banner} ${snipeStyles.bannerVote}`}><span aria-hidden="true">⚖️</span><span><strong>Snipe court needs you</strong> · {sniped.to_vote} {sniped.to_vote === 1 ? "snipe wasn’t" : "snipes weren’t"} cleaned up. Your vote is anonymous</span><span>Vote →</span></Link>}
         <div className={styles.cards}>
           <Link href="/dishes" className={styles.card}>
             <div className={styles.cardTop}>

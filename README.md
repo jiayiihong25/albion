@@ -56,6 +56,10 @@ A fun house management app for tracking dishes washed, fridge inventory, and mor
     It adds the `bin_runs` table, the `submit_bin_run` RPC and a private
     `bin-run-photos` bucket. Safe to re-run.
 
+12. Apply `supabase/migrations/0011_dish_snipes.sql` for dish snipes. It adds
+    the snipe tables (readable only through functions, so anonymous senders
+    and voters stay hidden) and a private `snipe-photos` bucket. Safe to re-run.
+
 ### Running everything locally
 
 With Docker running, `npx supabase start` brings up a local Supabase on port
@@ -83,6 +87,13 @@ Authentication, and link it to a roommate as described in
   iMessage: a heavily blurred copy of the photo, who washed, and the points.
   The blur is made on the phone, so the real photo never leaves the private
   bucket. Any washed day can be shared later from the calendar.
+- **Dish snipes** (`/snipes`) — photo a dish someone left out and tag whose
+  it is. Nothing is deducted straight away: the person tagged sees it on their
+  dashboard and can post a photo of it cleaned before that night's check-in to
+  erase it. If they don't, the other housemates vote anonymously, and a guilty
+  verdict costs a leaderboard point (at most 2 a day). Senders are anonymous by
+  default, and photos are deleted after 7 days. See
+  [docs/specs/dish-snipe.md](docs/specs/dish-snipe.md).
 - **The fridge** (`/fridge`) — an illustrated fridge, freezer, pantry and
   household box ([spec](docs/specs/virtual-fridge.md)). Paste a grocery email
   to unpack a whole run at once. Each item gets a spot and a rough

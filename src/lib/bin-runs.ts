@@ -12,11 +12,16 @@ export const BINS: Record<BinKind, { label: string; icon: string; hint: string }
   compost: { label: "Compost", icon: "🍌", hint: "Kitchen compost into the green bin" },
 };
 
-/** The overall house score: dish points (3 on time, 1 late, −1 missed) plus 2 per bin run. */
+/**
+ * The overall house score: dish points (3 on time, 1 late, −1 missed), plus 2 per
+ * bin run, minus 1 per guilty snipe (`snipes` comes from dish_snipe_deductions(),
+ * already capped at 2 a day).
+ */
 export function buildHouseLeaderboard(
   roommates: Pick<Roommate, "id" | "name">[],
   completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[],
   runs: Pick<BinRun, "roommate_id">[],
+  snipes: { roommate_id: string; counted: number }[] = [],
   now = new Date(),
 ) {
   const scores = buildDishLeaderboard(roommates, completions, now).map((person) => {
@@ -24,7 +29,8 @@ export function buildHouseLeaderboard(
     const binRuns = roommate ? runs.filter((run) => run.roommate_id === roommate.id).length : 0;
     const dishPoints = person.points;
     const binPoints = binRuns * BIN_RUN_POINTS;
-    return { ...person, dishPoints, binRuns, binPoints, points: dishPoints + binPoints };
+    const guiltySnipes = roommate ? snipes.find((entry) => entry.roommate_id === roommate.id)?.counted ?? 0 : 0;
+    return { ...person, dishPoints, binRuns, binPoints, guiltySnipes, points: dishPoints + binPoints - guiltySnipes };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   return scores.map((person) => ({
     ...person,

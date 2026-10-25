@@ -141,8 +141,21 @@ test("the house score adds 2 points per bin run to dish points; ties share a ran
   ];
   const runs = [{ roommate_id: "kevin" }, { roommate_id: "alex" }, { roommate_id: "alex" }, { roommate_id: "brandon" }, { roommate_id: "brandon" }];
   // Scored during the first week, so no shift has closed as missed yet.
-  const board = buildHouseLeaderboard(roommates, dishes, runs, new Date("2026-10-25T16:00:00Z"));
+  const board = buildHouseLeaderboard(roommates, dishes, runs, [], new Date("2026-10-25T16:00:00Z"));
   assert.deepEqual(board.slice(0, 4).map((p) => [p.name, p.points, p.rank]), [["Kevin", 5, 1], ["Alex", 4, 2], ["Brandon", 4, 2], ["Anson", 1, 4]]);
   assert.deepEqual([board[0].dishPoints, board[0].binPoints, board[0].binRuns], [3, 2, 1]);
   assert.equal(board.at(-1).points, 0);
+});
+
+test("guilty snipes come off the house score and can push it below zero", () => {
+  const roommates = [{ id: "a", name: "Alex" }, { id: "b", name: "Anson" }];
+  const dishes = [{ performed_on: "2026-10-20", roommate_id: "a", created_at: "2026-10-20T16:00:00Z" }];
+  const board = buildHouseLeaderboard(roommates, dishes, [{ roommate_id: "a" }],
+    [{ roommate_id: "a", counted: 2 }, { roommate_id: "b", counted: 1 }], new Date("2026-10-21T16:00:00Z"));
+  const alex = board.find((p) => p.name === "Alex");
+  const anson = board.find((p) => p.name === "Anson");
+  assert.deepEqual([alex.dishPoints, alex.binPoints, alex.guiltySnipes, alex.points], [3, 2, 2, 3]);
+  assert.deepEqual([anson.guiltySnipes, anson.points], [1, -1]);
+  assert.equal(board.at(-1).name, "Anson");
+  assert.equal(board.find((p) => p.name === "Brandon").guiltySnipes, 0);
 });

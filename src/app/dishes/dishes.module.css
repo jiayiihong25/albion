@@ -293,3 +293,6 @@
 .shareActions .secondaryButton { margin-top: 0; width: 100%; padding: 12px 15px; font-size: 12px; background: #fffef8; }
 .shareActions .secondaryButton:disabled { opacity: .5; }
 .shareButton { margin-top: 14px; }
+.snipeChip { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; padding: 1px 6px; border: 1px solid #e6c9bd; border-radius: 99px; background: #fbf0ea; color: #8f4a3c; font-size: 9px; font-weight: 600; text-decoration: none; vertical-align: 1px; white-space: nowrap; }
+.snipeChip:hover { background: #f6e3da; }
+.bannerActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
