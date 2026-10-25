@@ -13,9 +13,13 @@ export const DISH_ROTATION = [
   { name: "Vincent", day: "Saturday", avatar: "/avatars/vincent.png", color: "#eedce2" },
 ] as const;
 
+/** The first week the leaderboard scores; missed shifts before this never count. */
+export const DISH_SCORING_STARTS = "2026-10-19";
+
 export type DishStatus = "done" | "due" | "missed" | "upcoming";
 
-export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[], completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[]) {
+export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[], completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[], now = new Date()) {
+  const missed = missedShifts(completions, now);
   const scores = DISH_ROTATION.map((person) => {
     const roommate = roommates.find((r) => r.name === person.name);
     let onTime = 0;
@@ -27,12 +31,34 @@ export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[],
         else late += 1;
       }
     }
-    return { ...person, onTime, late, points: onTime * 3 + late };
+    // A roommate who isn't connected yet can't be docked.
+    const missedCount = roommate ? missed.get(person.name) ?? 0 : 0;
+    return { ...person, onTime, late, missed: missedCount, points: onTime * 3 + late - missedCount };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   return scores.map((person) => ({
     ...person,
     rank: scores.findIndex((entry) => entry.points === person.points) + 1,
   }));
+}
+
+/**
+ * A shift nobody checked in for before its week closed (8am the Monday after) costs
+ * the scheduled roommate a point. Covering it, or a late check-in that same week, clears it.
+ */
+function missedShifts(completions: Pick<DishCompletion, "performed_on" | "created_at">[], now: Date) {
+  const missed = new Map<string, number>();
+  const openWeek = startOfWeek(houseDishDay(now));
+  for (let week = DISH_SCORING_STARTS; week < openWeek; week = addDays(week, 7)) {
+    const sunday = addDays(week, 6);
+    for (let i = 0; i < 6; i++) {
+      const day = addDays(week, i);
+      const person = scheduledRoommate(day);
+      if (!person) continue;
+      const resolved = completions.some((c) => c.performed_on === day && houseDishDay(new Date(c.created_at)) <= sunday);
+      if (!resolved) missed.set(person.name, (missed.get(person.name) ?? 0) + 1);
+    }
+  }
+  return missed;
 }
 
 /** Calendar math uses UTC noon so DST and the viewer's timezone cannot shift a day. */

@@ -71,7 +71,7 @@ test("the leaderboard awards 3 until 8am Toronto the next morning and 1 after", 
     { performed_on: "2026-10-31", roommate_id: "vincent", created_at: "2026-11-01T12:59:59Z" },
     { performed_on: "2026-10-22", roommate_id: "jiayi", created_at: "2026-10-22T11:00:00Z" },
   ];
-  const scores = buildDishLeaderboard(people, entries);
+  const scores = buildDishLeaderboard(people, entries, new Date("2026-10-25T16:00:00Z"));
   assert.equal(scores.find((person) => person.name === "Kevin").points, 4);
   assert.equal(scores.find((person) => person.name === "Kevin").onTime, 1);
   assert.equal(scores.find((person) => person.name === "Kevin").late, 1);
@@ -83,12 +83,46 @@ test("the leaderboard awards 3 until 8am Toronto the next morning and 1 after", 
   assert.equal(scores.find((person) => person.name === "Brandon").points, 0);
 });
 
+test("a shift still undone when its week closes costs the scheduled roommate a point", () => {
+  const people = DISH_ROTATION.map((person) => ({ id: person.name.toLowerCase(), name: person.name }));
+  const entries = [
+    // Kevin covers Alex's Monday, so Alex isn't docked.
+    { performed_on: "2026-10-19", roommate_id: "kevin", created_at: "2026-10-19T23:00:00Z" },
+    // Anson checks in late but before Monday 8am, so the week counts it.
+    { performed_on: "2026-10-20", roommate_id: "anson", created_at: "2026-10-26T11:59:59Z" },
+    // Jiayi's Thursday only gets checked in after the week closed: late points, still docked.
+    { performed_on: "2026-10-22", roommate_id: "jiayi", created_at: "2026-10-26T12:00:00Z" },
+    { performed_on: "2026-10-23", roommate_id: "kevin", created_at: "2026-10-23T23:00:00Z" },
+    { performed_on: "2026-10-24", roommate_id: "vincent", created_at: "2026-10-24T23:00:00Z" },
+  ];
+  const before = buildDishLeaderboard(people, entries, new Date("2026-10-26T11:59:59Z"));
+  assert.ok(before.every((person) => person.missed === 0));
+  const after = buildDishLeaderboard(people, entries, new Date("2026-10-26T12:00:00Z"));
+  const find = (name) => after.find((person) => person.name === name);
+  assert.equal(find("Alex").points, 0);
+  assert.equal(find("Brandon").missed, 1);
+  assert.equal(find("Brandon").points, -1);
+  assert.equal(find("Jiayi").missed, 1);
+  assert.equal(find("Jiayi").points, 0);
+  assert.equal(find("Anson").missed, 0);
+  assert.equal(find("Kevin").points, 6);
+  assert.equal(after.at(-1).name, "Brandon");
+});
+
+test("missed shifts before scoring started never count", () => {
+  const people = DISH_ROTATION.map((person) => ({ id: person.name.toLowerCase(), name: person.name }));
+  // Only the first scored week (Oct 19–25) has closed, so each shift is docked once, not for earlier weeks.
+  const scores = buildDishLeaderboard(people, [], new Date("2026-10-26T12:00:00Z"));
+  assert.ok(scores.every((person) => person.missed === 1 && person.points === -1));
+  assert.ok(buildDishLeaderboard([], [], new Date("2026-11-30T12:00:00Z")).every((person) => person.points === 0));
+});
+
 test("equal scores share a rank and sort alphabetically; covering credits the washer", () => {
   const people = [{ id: "a", name: "Alex" }, { id: "b", name: "Anson" }];
   const scores = buildDishLeaderboard(people, [
     { performed_on: "2026-10-20", roommate_id: "a", created_at: "2026-10-20T16:00:00Z" },
     { performed_on: "2026-10-19", roommate_id: "b", created_at: "2026-10-19T16:00:00Z" },
-  ]);
+  ], new Date("2026-10-25T16:00:00Z"));
   assert.deepEqual(scores.slice(0, 2).map((person) => [person.name, person.points, person.rank]), [
     ["Alex", 3, 1], ["Anson", 3, 1],
   ]);

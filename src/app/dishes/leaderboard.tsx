@@ -52,6 +52,8 @@ export function DishLeaderboard({ refreshKey }: { refreshKey: number }) {
   }, [supabase, refreshKey, retry]);
 
   const rows = scores ?? buildDishLeaderboard([], []);
+  // Rank everyone, negatives included, once anyone has a score.
+  const ranked = Boolean(scores?.some((person) => person.points !== 0));
   return (
     <aside className={styles.leaderboard} aria-labelledby="leaderboard-heading">
       <div className={styles.leaderboardHeading}>
@@ -61,16 +63,16 @@ export function DishLeaderboard({ refreshKey }: { refreshKey: number }) {
       </div>
       <ol className={styles.leaderboardRows}>
         {rows.map((person) => (
-          <li key={person.name} className={scores && person.points > 0 && person.rank === 1 ? styles.firstPlace : undefined}>
-            <span className={styles.rank} aria-label={scores && person.points > 0 ? `Rank ${person.rank}` : undefined}>{scores && person.points > 0 ? person.rank.toString().padStart(2, "0") : "—"}</span>
+          <li key={person.name} className={ranked && person.points > 0 && person.rank === 1 ? styles.firstPlace : undefined}>
+            <span className={styles.rank} aria-label={ranked ? `Rank ${person.rank}` : undefined}>{ranked ? person.rank.toString().padStart(2, "0") : "—"}</span>
             <Avatar name={person.name} />
-            <div className={styles.scorePerson}><strong>{person.name}</strong><small>{scores ? `${person.onTime} on time · ${person.late} late` : "Waiting for scores"}</small></div>
-            <span className={styles.points}><strong>{scores ? person.points : "—"}</strong><small>PTS</small></span>
+            <div className={styles.scorePerson}><strong>{person.name}</strong><small>{scores ? `${person.onTime} on time · ${person.late} late${person.missed ? ` · ${person.missed} missed` : ""}` : "Waiting for scores"}</small></div>
+            <span className={`${styles.points}${scores && person.points < 0 ? ` ${styles.negativePoints}` : ""}`}><strong>{scores ? person.points < 0 ? `−${-person.points}` : person.points : "—"}</strong><small>PTS</small></span>
           </li>
         ))}
       </ol>
-      <div className={styles.scoringKey}><span><strong>+3</strong> On time</span><span><strong>+1</strong> Late</span><span><strong>0</strong> Incomplete</span></div>
-      <p className={styles.scoringNote}>Check in by 8am Toronto time the next morning for full points. Covering a shift earns the washer the points. Ties share a rank.</p>
+      <div className={styles.scoringKey}><span><strong>+3</strong> On time</span><span><strong>+1</strong> Late</span><span><strong>−1</strong> Missed</span></div>
+      <p className={styles.scoringNote}>Check in by 8am Toronto time the next morning for full points. Covering a shift earns the washer the points. A shift still undone when the week ends costs its owner a point. Ties share a rank.</p>
       {!supabase ? <p className={styles.scoreError}>Connect the calendar to load scores.</p> : error ? <div className={styles.scoreError} role="status"><p>{scores ? "Showing the last loaded scores. " : ""}{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>Refresh scores</button></div> : null}
     </aside>
   );
