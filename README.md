@@ -50,9 +50,15 @@ A fun house management app for tracking dishes washed, fridge inventory, and mor
     the `dish_shares` table and a small public `dish-share-teasers` bucket. Safe
     to re-run.
 
-11. Apply `supabase/migrations/0009_dish_snipes.sql` for dish snipes. It adds
+11. Apply `supabase/migrations/0009_dish_day_8am.sql` (dish check-ins count as
+    on time until 8am the next morning), then
+    `supabase/migrations/0010_bin_runs.sql` for bin runs (`/garbage`).
+    It adds the `bin_runs` table, the `submit_bin_run` RPC and a private
+    `bin-run-photos` bucket. Safe to re-run.
+
+12. Apply `supabase/migrations/0011_dish_snipes.sql` for dish snipes. It adds
     the snipe tables (readable only through functions, so anonymous senders
-    stay hidden) and a private `snipe-photos` bucket. Safe to re-run.
+    and voters stay hidden) and a private `snipe-photos` bucket. Safe to re-run.
 
 ### Running everything locally
 

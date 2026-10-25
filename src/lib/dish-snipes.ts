@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatCalendarDate, houseToday } from "./dish-calendar";
+import { formatCalendarDate, houseDishDay } from "./dish-calendar";
 
 export const SNIPE_PHOTO_BUCKET = "snipe-photos";
 export const SNIPE_NOTE_LIMIT = 140;
@@ -59,12 +59,12 @@ export function snipeWhen(snipe: Pick<DishSnipe, "sniped_on" | "part_of_day">, t
 }
 
 /**
- * The cleanup window ends at the night's dish check-in, or midnight if nobody
- * checks in, so a pending snipe always reads as "tonight" or "tomorrow night".
+ * The cleanup window ends at the night's dish check-in, or 8am when the dish
+ * day ends, so a pending snipe always reads as "tonight" or "tomorrow night".
  */
 export function cleanupNight(closesAt: string, now = new Date()) {
   const lastMoment = new Date(new Date(closesAt).getTime() - 1);
-  return houseToday(lastMoment) === houseToday(now) ? "tonight’s" : "tomorrow night’s";
+  return houseDishDay(lastMoment) === houseDishDay(now) ? "tonight’s" : "tomorrow night’s";
 }
 
 /** "31 h left", "2 days left" or null once it has passed. */

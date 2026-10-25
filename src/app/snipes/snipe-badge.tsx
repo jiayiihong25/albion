@@ -5,7 +5,7 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { SnipeInbox } from "@/lib/dish-snipes";
 import styles from "./snipes.module.css";
 
-/** Snipes waiting on you: ones to clean up plus votes to cast. Shows nothing before migration 0009. */
+/** Snipes waiting on you: ones to clean up plus votes to cast. Shows nothing before migration 0011. */
 export function SnipeBadge() {
   const supabase = useMemo(() => isSupabaseConfigured ? createClient() : null, []);
   const [count, setCount] = useState(0);

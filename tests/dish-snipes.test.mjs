@@ -6,7 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 // Runs the real migrations in an isolated PostgreSQL; never touches the house database.
 const db = new PGlite();
-const migrations = ["0001_init.sql", "0002_dish_calendar.sql", "0003_house_auth.sql", "0004_dish_reviews.sql", "0005_direct_dish_check_ins.sql", "0006_virtual_fridge.sql", "0007_house_join.sql", "0008_dish_shares.sql", "0009_dish_snipes.sql"];
+const migrations = ["0001_init.sql", "0002_dish_calendar.sql", "0003_house_auth.sql", "0004_dish_reviews.sql", "0005_direct_dish_check_ins.sql", "0006_virtual_fridge.sql", "0007_house_join.sql", "0008_dish_shares.sql", "0009_dish_day_8am.sql", "0010_bin_runs.sql", "0011_dish_snipes.sql"];
 const names = ["Alex", "Anson", "Brandon", "Jiayi", "Kevin", "Vincent"];
 const userId = (name) => `10000000-0000-0000-0000-${String(names.indexOf(name) + 1).padStart(12, "0")}`;
 let people;
@@ -34,7 +34,7 @@ before(async () => {
     await db.exec(await readFile(new URL(`../supabase/migrations/${filename}`, import.meta.url), "utf8"));
   }
   // Re-running from the dashboard must be safe.
-  await db.exec(await readFile(new URL("../supabase/migrations/0009_dish_snipes.sql", import.meta.url), "utf8"));
+  await db.exec(await readFile(new URL("../supabase/migrations/0011_dish_snipes.sql", import.meta.url), "utf8"));
   people = Object.fromEntries((await db.query("select id, name from public.roommates")).rows.map((row) => [row.name, row.id]));
   for (const name of names) {
     await db.query("insert into auth.users(id) values ($1)", [userId(name)]);
@@ -165,7 +165,7 @@ test("the cleanup window closes at that night's check-in", async () => {
   await db.query("update public.dish_snipes set created_at = now() - interval '1 hour' where id = $1", [id]);
   assert.equal((await statusFor("Jiayi", id, "Alex")).status, "pending");
   await db.exec("reset role");
-  await db.query("insert into public.dish_completions(performed_on, roommate_id, created_at) values ((current_timestamp at time zone 'America/Toronto')::date, $1, now() - interval '30 minutes')", [people.Jiayi]);
+  await db.query("insert into public.dish_completions(performed_on, roommate_id, created_at) values (((current_timestamp at time zone 'America/Toronto') - interval '8 hours')::date, $1, now() - interval '30 minutes')", [people.Jiayi]);
   assert.equal((await statusFor("Jiayi", id, "Alex")).status, "voting");
   const proof = await upload("Alex");
   await denied("select public.clean_up_dish_snipe($1,$2)", [id, proof], "22023");

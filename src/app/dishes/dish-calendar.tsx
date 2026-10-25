@@ -8,10 +8,10 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { DishCompletion, Roommate } from "@/lib/types";
 import {
   addDays, calendarDate, DISH_ROTATION, dishStatus, formatCalendarDate, HOUSE_TIME_ZONE,
-  houseToday, scheduledRoommate, startOfWeek, weekLabel,
+  houseDishDay, houseToday, scheduledRoommate, startOfWeek, weekLabel,
 } from "@/lib/dish-calendar";
 import styles from "./dishes.module.css";
-import { DishLeaderboard } from "./leaderboard";
+import { HouseLeaderboard } from "./leaderboard";
 import { Avatar } from "./avatar";
 import { MemberMenu } from "@/components/member-menu";
 import { HouseArt } from "@/components/house-art";
@@ -45,7 +45,9 @@ type WeekData = {
 
 export default function DishCalendar({ member, initialDay }: { member: Roommate; initialDay?: string }) {
   const supabase = useMemo(() => isSupabaseConfigured ? createClient() : null, []);
-  const today = useSyncExternalStore(subscribeToDate, houseToday, serverDate);
+  // "Today" on the calendar is the open dish shift, which rolls over at 8am, not midnight.
+  const today = useSyncExternalStore(subscribeToDate, houseDishDay, serverDate);
+  const calendarToday = useSyncExternalStore(subscribeToDate, houseToday, serverDate);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [weekData, setWeekData] = useState<WeekData | null>(null);
@@ -73,7 +75,8 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
   const selectedCompletion = completions.find((entry) => entry.performed_on === selectedDate);
   const assigned = selectedDate ? scheduledRoommate(selectedDate) : null;
   const selectedRoommate = member;
-  const isFuture = selectedDate > today;
+  // An early riser can still check in for the calendar day before the 8am rollover.
+  const isFuture = selectedDate > calendarToday;
   const washedCount = completions.length;
   const dueCount = ready ? days.filter((day) => day <= today && !completions.some((entry) => entry.performed_on === day)).length : 0;
   const todayPerson = today ? scheduledRoommate(today) : null;
@@ -242,7 +245,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
       <div className={styles.shell}>
         <nav className={styles.nav} aria-label="House navigation">
           <Link href="/" className={styles.brand}><HouseArt name="house" size={38} /> albion<span className={styles.brandDivider}>/</span><span className={styles.brandSection}>the house</span></Link>
-          <div className={styles.navActions}><Link href="/snipes" className={styles.navLink} aria-label="Snipes"><span aria-hidden="true">📸</span> Snipes<SnipeBadge /></Link><Link href="/fridge" className={styles.navLink}><HouseArt name="fridge" size={25} /> Fridge</Link><MemberMenu member={member} /></div>
+          <div className={styles.navActions}><Link href="/garbage" className={styles.navLink}><span aria-hidden="true">🗑️</span> Bins</Link><Link href="/snipes" className={styles.navLink} aria-label="Snipes"><span aria-hidden="true">📸</span> Snipes<SnipeBadge /></Link><Link href="/fridge" className={styles.navLink}><HouseArt name="fridge" size={25} /> Fridge</Link><MemberMenu member={member} /></div>
         </nav>
 
         <header className={styles.header}>
@@ -313,7 +316,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
 
         <section className={styles.rotation} aria-label="Weekly dish rotation"><div><p className={styles.eyebrow}>THE REGULAR ROTATION</p><h2>Same day. Every week.</h2></div><div className={styles.rotationPeople}>{DISH_ROTATION.map((person) => <div key={person.name}><span className={styles.rotationDay}>{person.day.slice(0, 3)}</span><Avatar name={person.name} /><strong>{person.name}</strong></div>)}</div><p>Sunday is a team effort.<br />Anyone can take the last shift.</p></section>
         </div>
-        <div className={styles.sidebar}><DishLeaderboard refreshKey={scoreRevision + reload} /></div>
+        <div className={styles.sidebar}><HouseLeaderboard refreshKey={scoreRevision + reload} /></div>
         </div>
         <AnimatePresence>{sniping && weekData && <SnipeSheet member={member} roommates={weekData.roommates} onDuty={isThisWeek && !todayComplete ? todayPerson?.name : null} onClose={() => setSniping(false)} onSent={(message) => { setSniping(false); setNotice(message); window.dispatchEvent(new Event("albion:snipes-changed")); }} />}</AnimatePresence>
         <AnimatePresence>{shareRequest && <DishShareSheet key={shareRequest.day} request={shareRequest} onClose={() => setShareRequest(null)} />}</AnimatePresence>

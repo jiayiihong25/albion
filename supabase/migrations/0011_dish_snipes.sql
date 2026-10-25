@@ -1,4 +1,4 @@
--- Apply after 0008_dish_shares.sql. Dish snipes: photo a dish someone left out
+-- Apply after 0010_bin_runs.sql. Dish snipes: photo a dish someone left out
 -- and tag whose it is. They can clean it up (with a photo) before that night's
 -- check-in to erase the snipe. If they don't, the other housemates vote, and a
 -- guilty verdict costs a point. Senders and voters are never shown. Safe to re-run.
@@ -16,7 +16,8 @@ create table if not exists public.dish_snipes (
   photo_path text unique,                                       -- null once the photo is deleted
   photo_sha256 text not null unique,
   note text check (char_length(note) <= 140),
-  sniped_on date not null default (current_timestamp at time zone 'America/Toronto')::date,
+  -- The dish day: before 8am Toronto it's still the night before (see 0009).
+  sniped_on date not null default ((current_timestamp at time zone 'America/Toronto') - interval '8 hours')::date,
   created_at timestamptz not null default now(),
   withdrawn_at timestamptz,
   photo_deleted_at timestamptz
@@ -55,8 +56,9 @@ alter table public.dish_snipe_targets enable row level security;
 alter table public.dish_snipe_votes enable row level security;
 revoke all on public.dish_snipes, public.dish_snipe_targets, public.dish_snipe_votes from public, anon, authenticated;
 
--- The cleanup window closes at that night's dish check-in, or at midnight if
--- nobody checks in. A snipe sent after the night's check-in gets the next night.
+-- The cleanup window closes at that night's dish check-in, or at 8am the next
+-- morning (when the dish day ends) if nobody checks in. A snipe sent after the
+-- night's check-in gets the next night.
 create or replace function public.dish_snipe_cleanup_closes(p_sniped_on date, p_created_at timestamptz)
 returns timestamptz language sql stable security definer set search_path = '' as $$
   with night as (
@@ -64,7 +66,7 @@ returns timestamptz language sql stable security definer set search_path = '' as
         where c.performed_on = p_sniped_on and c.created_at <= p_created_at)
       then p_sniped_on + 1 else p_sniped_on end as day
   )
-  select least(((n.day + 1)::timestamp at time zone 'America/Toronto'),
+  select least((((n.day + 1) + time '08:00') at time zone 'America/Toronto'),
     (select c.created_at from public.dish_completions c where c.performed_on = n.day and c.created_at > p_created_at))
   from night n;
 $$;
@@ -178,7 +180,7 @@ create or replace function public.submit_dish_snipe(p_photo_path text, p_photo_s
 returns uuid language plpgsql security definer set search_path = '' as $$
 declare
   member_id uuid := public.house_member_id();
-  today date := (current_timestamp at time zone 'America/Toronto')::date;
+  today date := ((current_timestamp at time zone 'America/Toronto') - interval '8 hours')::date;
   targets uuid[];
   note text := nullif(btrim(p_note), '');
   target uuid;

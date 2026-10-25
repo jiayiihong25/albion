@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { AnimatePresence } from "motion/react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import { addDays, DISH_ROTATION, houseToday } from "@/lib/dish-calendar";
+import { addDays, DISH_ROTATION, houseDishDay } from "@/lib/dish-calendar";
 import { DISH_PHOTO_TYPES, validateDishPhoto } from "@/lib/dish-photos";
 import {
   cleanUpDishSnipe, prepareSnipePhoto, cleanupNight, SNIPE_PHOTO_BUCKET, snipeErrorMessage, snipeWhen,
@@ -55,7 +55,7 @@ export function SnipeBoard({ member, initialPerson }: { member: Roommate; initia
     let active = true;
     async function load() {
       try {
-        const since = addDays(houseToday(), -FEED_DAYS);
+        const since = addDays(houseDishDay(), -FEED_DAYS);
         const [people, snipes] = await Promise.all([
           supabase!.from("roommates").select("id,name").in("name", DISH_ROTATION.map((p) => p.name)).abortSignal(controller.signal),
           supabase!.rpc("house_dish_snipes", { p_since: since }).abortSignal(controller.signal),
@@ -96,7 +96,7 @@ export function SnipeBoard({ member, initialPerson }: { member: Roommate; initia
     window.dispatchEvent(new Event("albion:snipes-changed"));
   }
 
-  const today = houseToday();
+  const today = houseDishDay();
   const nameOf = (id: string | null) => feed?.roommates.find((r) => r.id === id)?.name ?? "A housemate";
   const snipes = feed?.snipes ?? [];
   const mine = snipes.filter((snipe) => snipe.targets.some((target) => target.roommate_id === member.id));
@@ -125,7 +125,7 @@ export function SnipeBoard({ member, initialPerson }: { member: Roommate; initia
       <div className={styles.notice} role="status" aria-live="polite">{notice}</div>
 
       {!isSupabaseConfigured ? <div className={dishes.errorBanner} role="status"><strong>Connect the house</strong><p>Add your Supabase URL and public key to <code>.env.local</code>.</p></div>
-        : feed?.needsMigration ? <div className={dishes.errorBanner} role="status"><strong>One quick setup step</strong><p>Run <code>supabase/migrations/0009_dish_snipes.sql</code> in your project’s Supabase SQL editor to turn on snipes.</p><button type="button" onClick={refresh}>I’ve run it — reconnect</button></div>
+        : feed?.needsMigration ? <div className={dishes.errorBanner} role="status"><strong>One quick setup step</strong><p>Run <code>supabase/migrations/0011_dish_snipes.sql</code> in your project’s Supabase SQL editor to turn on snipes.</p><button type="button" onClick={refresh}>I’ve run it — reconnect</button></div>
         : feed?.error ? <div className={dishes.errorBanner} role="alert"><strong>Snipes couldn’t load</strong><p>{feed.error}</p><button type="button" onClick={refresh}>Try again</button></div>
         : !feed ? <p className={styles.empty} role="status">Loading snipes…</p>
         : shown.length === 0 ? <p className={styles.empty}>{tab === "mine" ? "Nobody’s sniped you. The sink is at peace 🕊️" : tab === "court" ? "Nothing to vote on. Snipe court is in recess." : person ? `No snipes on ${person} lately.` : "No snipes yet. The sink is at peace 🕊️"}</p>
@@ -231,7 +231,7 @@ function statusLine(target: DishSnipeTarget, name: string, me: boolean, snipe: D
   const votes = `${target.guilty_votes} guilty · ${target.not_guilty_votes} not guilty`;
   switch (target.status) {
     case "pending": return me
-      ? `Clean it up before ${cleanupNight(snipe.cleanup_closes_at)} dish check-in (midnight at the latest) and this snipe disappears. No points lost yet.`
+      ? `Clean it up before ${cleanupNight(snipe.cleanup_closes_at)} dish check-in (8am at the latest) and this snipe disappears. No points lost yet.`
       : `${name} has until ${cleanupNight(snipe.cleanup_closes_at)} dish check-in to clean it up. No points lost yet.`;
     case "voting": {
       const left = timeLeft(snipe.voting_closes_at);

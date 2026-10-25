@@ -1,0 +1,30 @@
+.binChoice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.binOption { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; border: 1px solid #dedfd5; border-radius: 9px; padding: 12px 14px; background: #fffef9; }
+.binOption:hover:enabled { background: #f4f7ec; }
+.binOption[aria-pressed="true"] { border-color: #2f4d36; background: #eef2e4; box-shadow: inset 0 0 0 1px #2f4d36; }
+.binOption:disabled { opacity: .55; }
+.binOption strong { font-size: 13px; font-weight: 550; }
+.binOption small { font-size: 9px; color: #7a8273; line-height: 1.5; }
+.binIcon { font-size: 22px; line-height: 1; }
+
+.todayBins { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 22px; width: 100%; max-width: 360px; }
+.todayBins li { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line); border-radius: 9px; padding: 11px 13px; font-size: 12px; }
+.todayBins li > span:nth-child(2) { flex: 1; min-width: 0; }
+.todayBins strong { display: block; font-weight: 550; }
+.todayBins small { display: block; font-size: 9px; color: var(--muted); margin-top: 3px; }
+.binDone { background: #ecf3e6; border-color: #ccdcbf !important; }
+.bounty { font-size: 10px; font-weight: 650; color: #50623f; white-space: nowrap; }
+
+.recent { margin-top: 34px; border-top: 1px solid var(--line); padding-top: 25px; }
+.recent h2 { font-size: 15px; font-weight: 500; letter-spacing: -.3px; margin-top: 6px; }
+.recentList { list-style: none; margin-top: 14px; }
+.recentList li { border-bottom: 1px solid #e9eadf; padding: 12px 0; }
+.recentRow { display: flex; align-items: center; gap: 11px; font-size: 12px; }
+.recentRow > span:nth-child(2) { flex: 1; min-width: 0; }
+.recentRow small { display: block; font-size: 9px; color: var(--muted); margin-top: 3px; }
+.recentRow button { font-size: 10px; text-decoration: underline; white-space: nowrap; }
+.recentEmpty { font-size: 12px; color: var(--muted); margin-top: 12px; }
+.recentPhoto { max-width: 360px; margin-top: 4px; }
+
+/* On phones the check-in comes first; the dish page leads with its leaderboard. */
+@media (max-width: 760px) { .sidebarLast { order: 1 !important; } }
