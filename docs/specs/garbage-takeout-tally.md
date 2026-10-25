@@ -1,6 +1,6 @@
 # Spec: Garbage Takeout Tally
 
-Status: **draft, not built** · Owner: Jia Yi · Last updated: 2026-10-22
+Status: **phase 1 = bin runs (built, §0); collection-day tally still draft** · Owner: Jia Yi · Last updated: 2026-10-25
 
 > What was asked: "Add a tally for garbage takeout. Right now the only tally is
 > for clean dishes, so I want something for taking out the garbage as well.
@@ -9,6 +9,35 @@ Status: **draft, not built** · Owner: Jia Yi · Last updated: 2026-10-22
 > This spec covers the takeout tally, the collection schedule it follows, and
 > how it shows on the home page. The bin fill levels from nightly photos are a
 > separate spec (`docs/specs/virtual-bins.md`). §14 lists where the two meet.
+
+## 0. Phase 1: bin runs (built)
+
+> The actual problem, from Jia Yi (Oct 25): "a lot of the time my house has
+> garbage that is full but no one wants to throw it out and it's just set
+> there. I'm trying to add an incentive of 2 points for anyone who takes out
+> the garbage and takes a picture of it (garbage or compost) to throw it into
+> the outside bins, collection day is different from that."
+
+So the first thing built is the **bin run**, not the collection-day tally. It
+replaces the "extra takeout" idea in §9 (which was 1 point, photo optional,
+phase 2) and settles the §18 question "does emptying the indoor kitchen bin
+count?": yes, and it's the main thing.
+
+| Area | Decision |
+| --- | --- |
+| What counts | Taking the full indoor **garbage** or **compost** out to the outside bin |
+| Points | **2 per run**, added to the overall **house score** (one leaderboard with dish points, shown on `/dishes` and `/garbage`) |
+| Proof | **Photo required**, of the bag going into the outside bin. Private `bin-run-photos` bucket, same rules as `dish-photos` |
+| Limit | **One garbage run and one compost run per house day** (Toronto time). Whoever is first gets the points; later attempts get "Someone already took the garbage out today" |
+| When | Any day, any time. Nothing to do with collection day |
+| Data | `0010_bin_runs.sql`: `bin_runs(bin, run_on, roommate_id, photo_path, created_at)`, unique `(bin, run_on)`. Writes only through `submit_bin_run(p_bin, p_photo_path)`, which sets the member and the house day on the server |
+| UI | `/garbage` ("Bin runs."): today's status for each bin, a check-in form (pick bin, add photo), recent runs with photos, the house score. A home card and a "Bins" nav link |
+| Not yet | Undo, and the collection-day tally below |
+
+The rest of this spec (the collection-day tally) is unchanged and still a
+draft. When it's built, its migration takes the next free number (`0008` is
+now `dish_shares`, `0009` is the 8am dish day and `0010` is bin runs), and its "extra takeout" (§9) should
+reuse `bin_runs` instead of adding `kind = 'extra'`.
 
 ## 1. Summary
 

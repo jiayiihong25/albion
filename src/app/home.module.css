@@ -1,4 +1,4 @@
-.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 24px; }
 .card { position: relative; display: flex; flex-direction: column; gap: 22px; padding: 30px 32px; border: 1px solid var(--line); border-radius: 18px; background: #fffef9; text-decoration: none; color: inherit; transition: border-color 90ms linear, background-color 90ms linear; overflow: hidden; }
 .card:hover { border-color: #b7c2ab; background: #fdfdf7; }
 .cardTop { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
