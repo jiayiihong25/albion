@@ -1,4 +1,4 @@
--- Apply after 0008_dish_shares.sql. Bin runs: empty a full indoor garbage or
+-- Apply after 0009_dish_day_8am.sql. Bin runs: empty a full indoor garbage or
 -- compost bin into the outside cart, with a photo, for 2 points. Safe to re-run.
 begin;
 

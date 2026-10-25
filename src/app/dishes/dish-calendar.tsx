@@ -8,7 +8,7 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { DishCompletion, Roommate } from "@/lib/types";
 import {
   addDays, calendarDate, DISH_ROTATION, dishStatus, formatCalendarDate, HOUSE_TIME_ZONE,
-  houseToday, scheduledRoommate, startOfWeek, weekLabel,
+  houseDishDay, houseToday, scheduledRoommate, startOfWeek, weekLabel,
 } from "@/lib/dish-calendar";
 import styles from "./dishes.module.css";
 import { HouseLeaderboard } from "./leaderboard";
@@ -43,7 +43,9 @@ type WeekData = {
 
 export default function DishCalendar({ member, initialDay }: { member: Roommate; initialDay?: string }) {
   const supabase = useMemo(() => isSupabaseConfigured ? createClient() : null, []);
-  const today = useSyncExternalStore(subscribeToDate, houseToday, serverDate);
+  // "Today" on the calendar is the open dish shift, which rolls over at 8am, not midnight.
+  const today = useSyncExternalStore(subscribeToDate, houseDishDay, serverDate);
+  const calendarToday = useSyncExternalStore(subscribeToDate, houseToday, serverDate);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [weekData, setWeekData] = useState<WeekData | null>(null);
@@ -70,7 +72,8 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
   const selectedCompletion = completions.find((entry) => entry.performed_on === selectedDate);
   const assigned = selectedDate ? scheduledRoommate(selectedDate) : null;
   const selectedRoommate = member;
-  const isFuture = selectedDate > today;
+  // An early riser can still check in for the calendar day before the 8am rollover.
+  const isFuture = selectedDate > calendarToday;
   const washedCount = completions.length;
   const dueCount = ready ? days.filter((day) => day <= today && !completions.some((entry) => entry.performed_on === day)).length : 0;
   const todayPerson = today ? scheduledRoommate(today) : null;

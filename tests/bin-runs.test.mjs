@@ -8,7 +8,7 @@ import { PGlite } from "@electric-sql/pglite";
 const require = createRequire(import.meta.url);
 const { buildHouseLeaderboard } = require("../src/lib/bin-runs.ts");
 const db = new PGlite();
-const migrations = ["0001_init.sql", "0002_dish_calendar.sql", "0003_house_auth.sql", "0004_dish_reviews.sql", "0005_direct_dish_check_ins.sql", "0006_virtual_fridge.sql", "0007_house_join.sql", "0008_dish_shares.sql", "0009_bin_runs.sql"];
+const migrations = ["0001_init.sql", "0002_dish_calendar.sql", "0003_house_auth.sql", "0004_dish_reviews.sql", "0005_direct_dish_check_ins.sql", "0006_virtual_fridge.sql", "0007_house_join.sql", "0008_dish_shares.sql", "0009_dish_day_8am.sql", "0010_bin_runs.sql"];
 const names = ["Alex", "Anson", "Brandon", "Jiayi", "Kevin", "Vincent"];
 const userId = (name) => `10000000-0000-0000-0000-${String(names.indexOf(name) + 1).padStart(12, "0")}`;
 let people;
@@ -36,7 +36,7 @@ before(async () => {
     await db.exec(await readFile(new URL(`../supabase/migrations/${filename}`, import.meta.url), "utf8"));
   }
   // Re-running the new migration must be safe for dashboard setup retries.
-  await db.exec(await readFile(new URL("../supabase/migrations/0009_bin_runs.sql", import.meta.url), "utf8"));
+  await db.exec(await readFile(new URL("../supabase/migrations/0010_bin_runs.sql", import.meta.url), "utf8"));
   people = Object.fromEntries((await db.query("select id, name from public.roommates")).rows.map((row) => [row.name, row.id]));
   for (const name of names) {
     await db.query("insert into auth.users(id) values ($1)", [userId(name)]);
@@ -140,7 +140,8 @@ test("the house score adds 2 points per bin run to dish points; ties share a ran
     { performed_on: "2026-10-19", roommate_id: "anson", created_at: "2026-10-21T16:00:00Z" },
   ];
   const runs = [{ roommate_id: "kevin" }, { roommate_id: "alex" }, { roommate_id: "alex" }, { roommate_id: "brandon" }, { roommate_id: "brandon" }];
-  const board = buildHouseLeaderboard(roommates, dishes, runs);
+  // Scored during the first week, so no shift has closed as missed yet.
+  const board = buildHouseLeaderboard(roommates, dishes, runs, new Date("2026-10-25T16:00:00Z"));
   assert.deepEqual(board.slice(0, 4).map((p) => [p.name, p.points, p.rank]), [["Kevin", 5, 1], ["Alex", 4, 2], ["Brandon", 4, 2], ["Anson", 1, 4]]);
   assert.deepEqual([board[0].dishPoints, board[0].binPoints, board[0].binRuns], [3, 2, 1]);
   assert.equal(board.at(-1).points, 0);

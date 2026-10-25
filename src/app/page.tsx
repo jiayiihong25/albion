@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireHouseMember } from "@/lib/house-member";
 import { createClient } from "@/lib/supabase/server";
-import { formatCalendarDate, houseToday, scheduledRoommate } from "@/lib/dish-calendar";
+import { formatCalendarDate, houseDishDay, houseToday, scheduledRoommate } from "@/lib/dish-calendar";
 import { freshness } from "@/lib/expiry";
 import { BIN_RUN_POINTS } from "@/lib/bin-runs";
 import { HouseNav } from "@/components/house-nav";
@@ -31,7 +31,7 @@ async function binRunsToday(today: string) {
 export default async function Home() {
   const member = await requireHouseMember("/");
   const today = houseToday();
-  const onDishes = scheduledRoommate(today);
+  const onDishes = scheduledRoommate(houseDishDay());
   const [fridge, binsOut] = await Promise.all([fridgeStatus(today), binRunsToday(today)]);
   const binsLine = !binsOut ? { title: "Take out a full bin", detail: `+${BIN_RUN_POINTS} points with a photo` }
     : binsOut.size >= 2 ? { title: "Both bins out today ✓", detail: "Garbage and compost are handled" }

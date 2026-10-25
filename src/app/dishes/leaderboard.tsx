@@ -12,6 +12,8 @@ import { HouseArt } from "@/components/house-art";
 
 type Scores = ReturnType<typeof buildHouseLeaderboard>;
 
+function signed(points: number) { return points < 0 ? `−${-points}` : `${points}`; }
+
 // Page through all history: an all-time leaderboard must not stop at the API row limit.
 async function loadAll<Row>(supabase: SupabaseClient, table: string, columns: string, order: string, signal: AbortSignal) {
   const rows: Row[] = [];
@@ -49,7 +51,7 @@ export function HouseLeaderboard({ refreshKey }: { refreshKey: number }) {
           loadAll<Pick<BinRun, "roommate_id">>(supabase!, "bin_runs", "roommate_id,created_at", "created_at", controller.signal),
         ]);
         if (dishes.error) throw new Error(dishes.error.message);
-        // Before 0009_bin_runs.sql is applied, the house score is just dishes.
+        // Before 0010_bin_runs.sql is applied, the house score is just dishes.
         if (bins.error && !["PGRST205", "42P01"].includes(bins.error.code)) throw new Error(bins.error.message);
         if (active) { setScores(buildHouseLeaderboard(people.data, dishes.rows, bins.rows)); setError(null); }
       } catch {
@@ -63,6 +65,8 @@ export function HouseLeaderboard({ refreshKey }: { refreshKey: number }) {
   }, [supabase, refreshKey, retry]);
 
   const rows = scores ?? buildHouseLeaderboard([], [], []);
+  // Rank everyone, negatives included, once anyone has a score.
+  const ranked = Boolean(scores?.some((person) => person.points !== 0));
   return (
     <aside className={styles.leaderboard} aria-labelledby="leaderboard-heading">
       <div className={styles.leaderboardHeading}>
@@ -72,16 +76,16 @@ export function HouseLeaderboard({ refreshKey }: { refreshKey: number }) {
       </div>
       <ol className={styles.leaderboardRows}>
         {rows.map((person) => (
-          <li key={person.name} className={scores && person.points > 0 && person.rank === 1 ? styles.firstPlace : undefined}>
-            <span className={styles.rank} aria-label={scores && person.points > 0 ? `Rank ${person.rank}` : undefined}>{scores && person.points > 0 ? person.rank.toString().padStart(2, "0") : "—"}</span>
+          <li key={person.name} className={ranked && person.points > 0 && person.rank === 1 ? styles.firstPlace : undefined}>
+            <span className={styles.rank} aria-label={ranked ? `Rank ${person.rank}` : undefined}>{ranked ? person.rank.toString().padStart(2, "0") : "—"}</span>
             <Avatar name={person.name} />
-            <div className={styles.scorePerson}><strong>{person.name}</strong><small>{scores ? `🍽️ ${person.dishPoints} · 🗑️ ${person.binPoints}` : "Waiting for scores"}</small></div>
-            <span className={styles.points}><strong>{scores ? person.points : "—"}</strong><small>PTS</small></span>
+            <div className={styles.scorePerson}><strong>{person.name}</strong><small>{scores ? `🍽️ ${signed(person.dishPoints)} · 🗑️ ${person.binPoints}${person.missed ? ` · ${person.missed} missed` : ""}` : "Waiting for scores"}</small></div>
+            <span className={`${styles.points}${scores && person.points < 0 ? ` ${styles.negativePoints}` : ""}`}><strong>{scores ? signed(person.points) : "—"}</strong><small>PTS</small></span>
           </li>
         ))}
       </ol>
-      <div className={styles.scoringKey}><span><strong>+3</strong> Dishes on time</span><span><strong>+1</strong> Dishes late</span><span><strong>+{BIN_RUN_POINTS}</strong> Bin run</span></div>
-      <p className={styles.scoringNote}>Dishes: check in by midnight Toronto time for full points; covering a shift earns the washer the points. Bins: take a full garbage or compost out with a photo, first each per day. Ties share a rank.</p>
+      <div className={styles.scoringKey}><span><strong>+3</strong> Dishes on time</span><span><strong>+1</strong> Dishes late</span><span><strong>−1</strong> Missed</span><span><strong>+{BIN_RUN_POINTS}</strong> Bin run</span></div>
+      <p className={styles.scoringNote}>Dishes: check in by 8am Toronto time the next morning for full points; covering a shift earns the washer the points; a shift still undone when the week ends costs its owner a point. Bins: take a full garbage or compost out with a photo, first each per day. Ties share a rank.</p>
       {!supabase ? <p className={styles.scoreError}>Connect the calendar to load scores.</p> : error ? <div className={styles.scoreError} role="status"><p>{scores ? "Showing the last loaded scores. " : ""}{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>Refresh scores</button></div> : null}
     </aside>
   );

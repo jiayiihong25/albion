@@ -12,13 +12,14 @@ export const BINS: Record<BinKind, { label: string; icon: string; hint: string }
   compost: { label: "Compost", icon: "🍌", hint: "Kitchen compost into the green bin" },
 };
 
-/** The overall house score: dish points (3 on time, 1 late) plus 2 per bin run. */
+/** The overall house score: dish points (3 on time, 1 late, −1 missed) plus 2 per bin run. */
 export function buildHouseLeaderboard(
   roommates: Pick<Roommate, "id" | "name">[],
   completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[],
   runs: Pick<BinRun, "roommate_id">[],
+  now = new Date(),
 ) {
-  const scores = buildDishLeaderboard(roommates, completions).map((person) => {
+  const scores = buildDishLeaderboard(roommates, completions, now).map((person) => {
     const roommate = roommates.find((r) => r.name === person.name);
     const binRuns = roommate ? runs.filter((run) => run.roommate_id === roommate.id).length : 0;
     const dishPoints = person.points;

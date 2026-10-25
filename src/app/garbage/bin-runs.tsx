@@ -172,7 +172,7 @@ export default function BinRuns({ member }: { member: Roommate }) {
         </header>
 
         {!isSupabaseConfigured ? <div className={styles.errorBanner} role="status"><strong>Connect the house</strong><p>Add your Supabase URL and public key to <code>.env.local</code>, then restart the dev server.</p></div>
-          : data?.needsMigration ? <div className={styles.errorBanner} role="status"><strong>One quick setup step</strong><p>Run <code>supabase/migrations/0009_bin_runs.sql</code> in your project’s Supabase SQL editor to turn on bin runs.</p><button type="button" onClick={() => { setData(null); setReload((value) => value + 1); }}>I’ve run it — reconnect</button></div>
+          : data?.needsMigration ? <div className={styles.errorBanner} role="status"><strong>One quick setup step</strong><p>Run <code>supabase/migrations/0010_bin_runs.sql</code> in your project’s Supabase SQL editor to turn on bin runs.</p><button type="button" onClick={() => { setData(null); setReload((value) => value + 1); }}>I’ve run it — reconnect</button></div>
           : data?.error ? <div className={styles.errorBanner} role="alert"><strong>Bin runs couldn’t load</strong><p>{data.error}</p><button type="button" onClick={() => setReload((value) => value + 1)}>Try again</button></div> : null}
 
         <div className={styles.workspace}>
