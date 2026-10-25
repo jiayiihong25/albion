@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { addDays, buildDishLeaderboard, DISH_ROTATION, dishStatus, houseToday, scheduledRoommate, startOfWeek, weekLabel } = require("../src/lib/dish-calendar.ts");
+const { addDays, buildDishLeaderboard, DISH_ROTATION, dishStatus, houseDishDay, houseToday, scheduledRoommate, startOfWeek, weekLabel } = require("../src/lib/dish-calendar.ts");
 
 test("the alphabetical rotation runs Monday–Saturday, with a shared Sunday", () => {
   const names = ["Alex", "Anson", "Brandon", "Jiayi", "Kevin", "Vincent"];
@@ -36,6 +36,17 @@ test("today follows Toronto midnight, including its changing UTC offset", () => 
   assert.equal(houseToday(new Date("2026-11-02T05:00:00Z")), "2026-11-02");
 });
 
+test("the dish day rolls over at 8am Toronto, not midnight, across daylight saving", () => {
+  assert.equal(houseDishDay(new Date("2026-10-20T11:59:59Z")), "2026-10-19");
+  assert.equal(houseDishDay(new Date("2026-10-20T12:00:00Z")), "2026-10-20");
+  assert.equal(houseDishDay(new Date("2026-10-20T04:30:00Z")), "2026-10-19");
+  // Clocks fall back at 2am on Nov 1, so 8am EST is 13:00 UTC.
+  assert.equal(houseDishDay(new Date("2026-11-01T12:59:59Z")), "2026-10-31");
+  assert.equal(houseDishDay(new Date("2026-11-01T13:00:00Z")), "2026-11-01");
+  assert.equal(houseDishDay(new Date("2026-03-08T11:59:59Z")), "2026-03-07");
+  assert.equal(houseDishDay(new Date("2026-03-08T12:00:00Z")), "2026-03-08");
+});
+
 test("unfinished past/today days are red states, future days grey, completions green", () => {
   assert.equal(dishStatus("2026-10-18", "2026-10-19", false), "missed");
   assert.equal(dishStatus("2026-10-19", "2026-10-19", false), "due");
@@ -50,22 +61,26 @@ test("week headings identify the full range across months and years", () => {
   assert.match(weekLabel("2026-12-28"), /Dec 28, 2026.*Jan 3, 2027/);
 });
 
-test("the leaderboard awards 3 before Toronto midnight and 1 after midnight", () => {
+test("the leaderboard awards 3 until 8am Toronto the next morning and 1 after", () => {
   const people = DISH_ROTATION.map((person) => ({ id: person.name.toLowerCase(), name: person.name }));
   const entries = [
-    { performed_on: "2026-10-19", roommate_id: "alex", created_at: "2026-10-20T03:59:59Z" },
-    { performed_on: "2026-10-18", roommate_id: "anson", created_at: "2026-10-19T04:00:00Z" },
-    { performed_on: "2026-10-17", roommate_id: "kevin", created_at: "2026-10-17T16:00:00Z" },
+    { performed_on: "2026-10-19", roommate_id: "alex", created_at: "2026-10-20T11:59:59Z" },
+    { performed_on: "2026-10-18", roommate_id: "anson", created_at: "2026-10-19T12:00:00Z" },
+    { performed_on: "2026-10-17", roommate_id: "kevin", created_at: "2026-10-18T05:13:00Z" },
     { performed_on: "2026-10-16", roommate_id: "kevin", created_at: "2026-10-18T16:00:00Z" },
+    { performed_on: "2026-10-31", roommate_id: "vincent", created_at: "2026-11-01T12:59:59Z" },
+    { performed_on: "2026-10-22", roommate_id: "jiayi", created_at: "2026-10-22T11:00:00Z" },
   ];
   const scores = buildDishLeaderboard(people, entries);
-  assert.equal(scores[0].name, "Kevin");
-  assert.equal(scores[0].points, 4);
-  assert.equal(scores[0].onTime, 1);
-  assert.equal(scores[0].late, 1);
+  assert.equal(scores.find((person) => person.name === "Kevin").points, 4);
+  assert.equal(scores.find((person) => person.name === "Kevin").onTime, 1);
+  assert.equal(scores.find((person) => person.name === "Kevin").late, 1);
   assert.equal(scores.find((person) => person.name === "Alex").points, 3);
   assert.equal(scores.find((person) => person.name === "Anson").points, 1);
-  assert.equal(scores.find((person) => person.name === "Vincent").points, 0);
+  assert.equal(scores.find((person) => person.name === "Vincent").points, 3);
+  // An early-morning check-in for the same calendar day is on time, not lost.
+  assert.equal(scores.find((person) => person.name === "Jiayi").points, 3);
+  assert.equal(scores.find((person) => person.name === "Brandon").points, 0);
 });
 
 test("equal scores share a rank and sort alphabetically; covering credits the washer", () => {

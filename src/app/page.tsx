@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireHouseMember } from "@/lib/house-member";
 import { createClient } from "@/lib/supabase/server";
-import { formatCalendarDate, houseToday, scheduledRoommate } from "@/lib/dish-calendar";
+import { formatCalendarDate, houseDishDay, houseToday, scheduledRoommate } from "@/lib/dish-calendar";
 import { freshness } from "@/lib/expiry";
 import { HouseNav } from "@/components/house-nav";
 import { HouseArt } from "@/components/house-art";
@@ -24,7 +24,7 @@ async function fridgeStatus(today: string) {
 export default async function Home() {
   const member = await requireHouseMember("/");
   const today = houseToday();
-  const onDishes = scheduledRoommate(today);
+  const onDishes = scheduledRoommate(houseDishDay());
   const fridge = await fridgeStatus(today);
   const mood = !fridge || fridge.total === 0 ? "😶" : fridge.expired ? "🤢" : fridge.soon ? "😬" : "😊";
   const fridgeLine = !fridge ? { tone: "", title: "Open the fridge", detail: "See what’s inside" }
