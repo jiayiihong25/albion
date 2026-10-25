@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { buildDishLeaderboard, DISH_ROTATION } from "@/lib/dish-calendar";
 import type { DishCompletion } from "@/lib/types";
+import type { SnipeDeduction } from "@/lib/dish-snipes";
 import styles from "./dishes.module.css";
 import { Avatar } from "./avatar";
 import { HouseArt } from "@/components/house-art";
@@ -40,7 +42,11 @@ export function DishLeaderboard({ refreshKey }: { refreshKey: number }) {
           if (!page.data.length) break;
           entries.push(...page.data);
         }
-        if (active) { setScores(buildDishLeaderboard(people.data, entries)); setError(null); }
+        // Before migration 0009 there are no snipes to count.
+        const sniped = await supabase!.rpc("dish_snipe_deductions").abortSignal(controller.signal);
+        if (sniped.error && sniped.error.code !== "PGRST202") throw new Error(sniped.error.message);
+        const deductions = (sniped.data ?? []) as SnipeDeduction[];
+        if (active) { setScores(buildDishLeaderboard(people.data, entries, deductions)); setError(null); }
       } catch {
         if (active) setError("Scores couldn’t refresh. Try again in a moment.");
       } finally {
@@ -60,17 +66,23 @@ export function DishLeaderboard({ refreshKey }: { refreshKey: number }) {
         <p>All-time house leaderboard</p>
       </div>
       <ol className={styles.leaderboardRows}>
-        {rows.map((person) => (
+        {rows.map((person) => {
+          const ranked = Boolean(scores) && (person.points > 0 || person.snipes > 0);
+          return (
           <li key={person.name} className={scores && person.points > 0 && person.rank === 1 ? styles.firstPlace : undefined}>
-            <span className={styles.rank} aria-label={scores && person.points > 0 ? `Rank ${person.rank}` : undefined}>{scores && person.points > 0 ? person.rank.toString().padStart(2, "0") : "—"}</span>
+            <span className={styles.rank} aria-label={ranked ? `Rank ${person.rank}` : undefined}>{ranked ? person.rank.toString().padStart(2, "0") : "—"}</span>
             <Avatar name={person.name} />
-            <div className={styles.scorePerson}><strong>{person.name}</strong><small>{scores ? `${person.onTime} on time · ${person.late} late` : "Waiting for scores"}</small></div>
+            <div className={styles.scorePerson}>
+              <strong>{person.name}{person.snipes > 0 && <Link href={`/snipes?person=${person.name}`} className={styles.snipeChip} aria-label={`${person.name}, ${person.snipes} guilty ${person.snipes === 1 ? "snipe" : "snipes"}`}>📸 −{person.snipes}</Link>}</strong>
+              <small>{scores ? `${person.onTime} on time · ${person.late} late${person.snipes ? ` · ${person.snipes} ${person.snipes === 1 ? "snipe" : "snipes"}` : ""}` : "Waiting for scores"}</small>
+            </div>
             <span className={styles.points}><strong>{scores ? person.points : "—"}</strong><small>PTS</small></span>
           </li>
-        ))}
+          );
+        })}
       </ol>
-      <div className={styles.scoringKey}><span><strong>+3</strong> On time</span><span><strong>+1</strong> Late</span><span><strong>0</strong> Incomplete</span></div>
-      <p className={styles.scoringNote}>Check in by midnight Toronto time for full points. Covering a shift earns the washer the points. Ties share a rank.</p>
+      <div className={styles.scoringKey}><span><strong>+3</strong> On time</span><span><strong>+1</strong> Late</span><span><strong>0</strong> Incomplete</span><span><strong>−1</strong> Guilty snipe</span></div>
+      <p className={styles.scoringNote}>Check in by midnight Toronto time for full points. Covering a shift earns the washer the points. A snipe costs a point only if it isn’t cleaned up and the house votes guilty. Ties share a rank.</p>
       {!supabase ? <p className={styles.scoreError}>Connect the calendar to load scores.</p> : error ? <div className={styles.scoreError} role="status"><p>{scores ? "Showing the last loaded scores. " : ""}{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>Refresh scores</button></div> : null}
     </aside>
   );

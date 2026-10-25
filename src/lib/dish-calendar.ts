@@ -13,7 +13,12 @@ export const DISH_ROTATION = [
 
 export type DishStatus = "done" | "due" | "missed" | "upcoming";
 
-export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[], completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[]) {
+/** `deductions` are guilty snipe verdicts, already capped per day by the database. */
+export function buildDishLeaderboard(
+  roommates: Pick<Roommate, "id" | "name">[],
+  completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[],
+  deductions: { roommate_id: string; counted: number }[] = [],
+) {
   const scores = DISH_ROTATION.map((person) => {
     const roommate = roommates.find((r) => r.name === person.name);
     let onTime = 0;
@@ -26,7 +31,8 @@ export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[],
         else if (submittedOn > completion.performed_on) late += 1;
       }
     }
-    return { ...person, onTime, late, points: onTime * 3 + late };
+    const snipes = roommate ? deductions.find((entry) => entry.roommate_id === roommate.id)?.counted ?? 0 : 0;
+    return { ...person, onTime, late, snipes, points: onTime * 3 + late - snipes };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   return scores.map((person) => ({
     ...person,

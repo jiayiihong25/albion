@@ -19,6 +19,8 @@ import { DISH_PHOTO_TYPES, saveDishCheckIn, validateDishPhoto } from "@/lib/dish
 import { DishPhoto } from "./dish-photo";
 import { AnimatePresence } from "motion/react";
 import { DishShareSheet, type ShareRequest } from "./share-sheet";
+import { SnipeSheet } from "@/app/snipes/snipe-sheet";
+import { SnipeBadge } from "@/app/snipes/snipe-badge";
 
 function subscribeToDate(onChange: () => void) {
   const timer = window.setInterval(onChange, 30_000);
@@ -56,6 +58,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [shareRequest, setShareRequest] = useState<ShareRequest | null>(null);
+  const [sniping, setSniping] = useState(false);
   const openedInitialDay = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const photoRequest = useRef(0);
@@ -239,7 +242,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
       <div className={styles.shell}>
         <nav className={styles.nav} aria-label="House navigation">
           <Link href="/" className={styles.brand}><HouseArt name="house" size={38} /> albion<span className={styles.brandDivider}>/</span><span className={styles.brandSection}>the house</span></Link>
-          <div className={styles.navActions}><Link href="/fridge" className={styles.navLink}><HouseArt name="fridge" size={25} /> Fridge</Link><MemberMenu member={member} /></div>
+          <div className={styles.navActions}><Link href="/snipes" className={styles.navLink} aria-label="Snipes"><span aria-hidden="true">📸</span> Snipes<SnipeBadge /></Link><Link href="/fridge" className={styles.navLink}><HouseArt name="fridge" size={25} /> Fridge</Link><MemberMenu member={member} /></div>
         </nav>
 
         <header className={styles.header}>
@@ -249,7 +252,10 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
 
         <section className={styles.todayBanner} aria-label="Today’s dish duty">
           <div className={styles.todayIntro}><HouseArt name="dishes" size={84} className={styles.todayArt} /><div><p className={styles.smallLabel}>ON THE ROSTER TODAY</p><h2>{today ? todayComplete ? "All clean for today." : todayPerson ? `${todayPerson.name}, you’re up.` : "A little Sunday teamwork." : "Getting the kitchen ready…"}</h2><p>{today ? `${formatCalendarDate(today, { weekday: "long", month: "long", day: "numeric" })} · ${todayComplete ? "The house thanks you. See you tomorrow." : todayPerson ? "Leave the sink better than you found it." : "A shared day — anyone can take this one."}` : "Loading your house calendar."}</p></div></div>
-          <button type="button" className={styles.bannerButton} disabled={!today || saving} onClick={() => { changeWeek(0); scrollToCheckIn(); }}>Today’s check-in </button>
+          <div className={styles.bannerActions}>
+            <button type="button" className={styles.bannerButton} disabled={!today || saving} onClick={() => { changeWeek(0); scrollToCheckIn(); }}>Today’s check-in </button>
+            <button type="button" className={styles.bannerButton} disabled={!weekData?.roommates.length} onClick={() => setSniping(true)}>📸 Snipe</button>
+          </div>
         </section>
 
         <div className={styles.workspace}>
@@ -309,6 +315,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
         </div>
         <div className={styles.sidebar}><DishLeaderboard refreshKey={scoreRevision + reload} /></div>
         </div>
+        <AnimatePresence>{sniping && weekData && <SnipeSheet member={member} roommates={weekData.roommates} onDuty={isThisWeek && !todayComplete ? todayPerson?.name : null} onClose={() => setSniping(false)} onSent={(message) => { setSniping(false); setNotice(message); window.dispatchEvent(new Event("albion:snipes-changed")); }} />}</AnimatePresence>
         <AnimatePresence>{shareRequest && <DishShareSheet key={shareRequest.day} request={shareRequest} onClose={() => setShareRequest(null)} />}</AnimatePresence>
         <footer className={styles.footer}><span>Good housemates leave a clean sink.</span><span>House time · Toronto</span></footer>
       </div>

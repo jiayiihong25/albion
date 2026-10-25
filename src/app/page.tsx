@@ -8,6 +8,8 @@ import { HouseArt } from "@/components/house-art";
 import { Avatar } from "./dishes/avatar";
 import shell from "@/components/house-shell.module.css";
 import styles from "./home.module.css";
+import snipeStyles from "./snipes/snipes.module.css";
+import { cleanupNight, type SnipeInbox } from "@/lib/dish-snipes";
 
 async function fridgeStatus(today: string) {
   const supabase = await createClient();
@@ -21,11 +23,18 @@ async function fridgeStatus(today: string) {
   };
 }
 
+/** Snipes waiting on you. Nothing before migration 0009. */
+async function snipeInbox(): Promise<SnipeInbox> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("dish_snipe_inbox").maybeSingle<SnipeInbox>();
+  return data ?? { to_clean: 0, to_vote: 0, clean_by: null };
+}
+
 export default async function Home() {
   const member = await requireHouseMember("/");
   const today = houseToday();
   const onDishes = scheduledRoommate(today);
-  const fridge = await fridgeStatus(today);
+  const [fridge, sniped] = await Promise.all([fridgeStatus(today), snipeInbox()]);
   const mood = !fridge || fridge.total === 0 ? "😶" : fridge.expired ? "🤢" : fridge.soon ? "😬" : "😊";
   const fridgeLine = !fridge ? { tone: "", title: "Open the fridge", detail: "See what’s inside" }
     : fridge.expired ? { tone: styles.statusRed, title: `${fridge.expired} expired${fridge.soon ? ` · ${fridge.soon} to use soon` : ""}`, detail: "Time for a quick clear-out" }
@@ -41,6 +50,8 @@ export default async function Home() {
           <span className={shell.houseTag}><span /> SIX PEOPLE. ONE HOUSE.</span>
         </header>
 
+        {sniped.to_clean > 0 && sniped.clean_by && <Link href="/snipes" className={snipeStyles.banner}><span aria-hidden="true">📸</span><span><strong>You got sniped{sniped.to_clean > 1 ? ` ${sniped.to_clean} times` : ""}</strong> · clean it up before {cleanupNight(sniped.clean_by)} dish check-in and it disappears</span><span>See it →</span></Link>}
+        {sniped.to_vote > 0 && <Link href="/snipes" className={`${snipeStyles.banner} ${snipeStyles.bannerVote}`}><span aria-hidden="true">⚖️</span><span><strong>Snipe court needs you</strong> · {sniped.to_vote} {sniped.to_vote === 1 ? "snipe wasn’t" : "snipes weren’t"} cleaned up. Your vote is anonymous</span><span>Vote →</span></Link>}
         <div className={styles.cards}>
           <Link href="/dishes" className={styles.card}>
             <div className={styles.cardTop}>

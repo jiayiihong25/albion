@@ -79,3 +79,16 @@ test("equal scores share a rank and sort alphabetically; covering credits the wa
   ]);
   assert.equal(scores.find((person) => person.name === "Brandon").points, 0);
 });
+
+test("guilty snipes take a point each and can push a score below zero", () => {
+  const people = [{ id: "a", name: "Alex" }, { id: "b", name: "Anson" }];
+  const scores = buildDishLeaderboard(people, [
+    { performed_on: "2026-10-20", roommate_id: "a", created_at: "2026-10-20T16:00:00Z" },
+  ], [{ roommate_id: "a", counted: 2 }, { roommate_id: "b", counted: 1 }]);
+  const alex = scores.find((person) => person.name === "Alex");
+  const anson = scores.find((person) => person.name === "Anson");
+  assert.deepEqual([alex.points, alex.snipes], [1, 2]);
+  assert.deepEqual([anson.points, anson.snipes], [-1, 1]);
+  assert.equal(scores.at(-1).name, "Anson");
+  assert.equal(scores.find((person) => person.name === "Brandon").snipes, 0);
+});
