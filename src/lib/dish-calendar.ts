@@ -1,6 +1,8 @@
 import type { DishCompletion, Roommate } from "./types";
 
 export const HOUSE_TIME_ZONE = "America/Toronto";
+/** A dish day runs until this hour the next morning, so after-midnight cleanups still count for the night before. */
+export const DISH_DAY_ENDS_AT_HOUR = 8;
 
 export const DISH_ROTATION = [
   { name: "Alex", day: "Monday", avatar: "/avatars/alex.png", color: "#dce8d2" },
@@ -21,9 +23,8 @@ export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[],
     if (roommate) {
       for (const completion of completions) {
         if (completion.roommate_id !== roommate.id) continue;
-        const submittedOn = houseToday(new Date(completion.created_at));
-        if (submittedOn === completion.performed_on) onTime += 1;
-        else if (submittedOn > completion.performed_on) late += 1;
+        if (houseDishDay(new Date(completion.created_at)) <= completion.performed_on) onTime += 1;
+        else late += 1;
       }
     }
     return { ...person, onTime, late, points: onTime * 3 + late };
@@ -39,15 +40,27 @@ export function calendarDate(date: string) {
   return new Date(`${date}T12:00:00Z`);
 }
 
-export function houseToday(now = new Date()) {
+function houseClock(now: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: HOUSE_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
   }).formatToParts(now);
   const part = (type: string) => parts.find((p) => p.type === type)!.value;
-  return `${part("year")}-${part("month")}-${part("day")}`;
+  return { date: `${part("year")}-${part("month")}-${part("day")}`, hour: Number(part("hour")) };
+}
+
+export function houseToday(now = new Date()) {
+  return houseClock(now).date;
+}
+
+/** The dish shift still open right now: before 8am Toronto, that's yesterday's. */
+export function houseDishDay(now = new Date()) {
+  const { date, hour } = houseClock(now);
+  return hour < DISH_DAY_ENDS_AT_HOUR ? addDays(date, -1) : date;
 }
 
 export function addDays(date: string, days: number) {
