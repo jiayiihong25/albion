@@ -26,13 +26,13 @@ count?": yes, and it's the main thing.
 | Area | Decision |
 | --- | --- |
 | What counts | Taking the full indoor **garbage** or **compost** out to the outside bin |
-| Points | **2 per run**, shown on its own "bin brigade" leaderboard on `/garbage` |
+| Points | **2 per run**, added to the overall **house score** (one leaderboard with dish points, shown on `/dishes` and `/garbage`) |
 | Proof | **Photo required**, of the bag going into the outside bin. Private `bin-run-photos` bucket, same rules as `dish-photos` |
 | Limit | **One garbage run and one compost run per house day** (Toronto time). Whoever is first gets the points; later attempts get "Someone already took the garbage out today" |
 | When | Any day, any time. Nothing to do with collection day |
 | Data | `0009_bin_runs.sql`: `bin_runs(bin, run_on, roommate_id, photo_path, created_at)`, unique `(bin, run_on)`. Writes only through `submit_bin_run(p_bin, p_photo_path)`, which sets the member and the house day on the server |
-| UI | `/garbage` ("Bin runs."): today's status for each bin, a check-in form (pick bin, add photo), recent runs with photos, leaderboard. A home card and a "Bins" nav link |
-| Not yet | Undo, combining bin and dish points into one house score, and the collection-day tally below |
+| UI | `/garbage` ("Bin runs."): today's status for each bin, a check-in form (pick bin, add photo), recent runs with photos, the house score. A home card and a "Bins" nav link |
+| Not yet | Undo, and the collection-day tally below |
 
 The rest of this spec (the collection-day tally) is unchanged and still a
 draft. When it's built, its migration takes the next free number (`0008` is

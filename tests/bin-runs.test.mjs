@@ -6,7 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 // Runs the real migrations in an isolated PostgreSQL; never touches the house database.
 const require = createRequire(import.meta.url);
-const { buildBinRunLeaderboard } = require("../src/lib/bin-runs.ts");
+const { buildHouseLeaderboard } = require("../src/lib/bin-runs.ts");
 const db = new PGlite();
 const migrations = ["0001_init.sql", "0002_dish_calendar.sql", "0003_house_auth.sql", "0004_dish_reviews.sql", "0005_direct_dish_check_ins.sql", "0006_virtual_fridge.sql", "0007_house_join.sql", "0008_dish_shares.sql", "0009_bin_runs.sql"];
 const names = ["Alex", "Anson", "Brandon", "Jiayi", "Kevin", "Vincent"];
@@ -132,14 +132,16 @@ test("draft photos stay private until recorded; outsiders see nothing", async ()
   await denied("select public.submit_bin_run('compost',$1)", [draft], "42501");
 });
 
-test("each run is worth 2 points and ties share a rank", () => {
+test("the house score adds 2 points per bin run to dish points; ties share a rank", () => {
   const roommates = names.map((name) => ({ id: name.toLowerCase(), name }));
-  const board = buildBinRunLeaderboard(roommates, [
-    { bin: "garbage", roommate_id: "kevin" }, { bin: "compost", roommate_id: "kevin" },
-    { bin: "garbage", roommate_id: "alex" }, { bin: "garbage", roommate_id: "alex" },
-    { bin: "compost", roommate_id: "anson" },
-  ]);
-  assert.deepEqual(board.slice(0, 3).map((p) => [p.name, p.points, p.rank]), [["Alex", 4, 1], ["Kevin", 4, 1], ["Anson", 2, 3]]);
-  assert.deepEqual([board[1].garbage, board[1].compost], [1, 1]);
+  // Kevin: one on-time wash (3) + one bin run (2). Alex: two bin runs (4). Anson: one late wash (1).
+  const dishes = [
+    { performed_on: "2026-10-19", roommate_id: "kevin", created_at: "2026-10-19T22:00:00Z" },
+    { performed_on: "2026-10-19", roommate_id: "anson", created_at: "2026-10-21T16:00:00Z" },
+  ];
+  const runs = [{ roommate_id: "kevin" }, { roommate_id: "alex" }, { roommate_id: "alex" }, { roommate_id: "brandon" }, { roommate_id: "brandon" }];
+  const board = buildHouseLeaderboard(roommates, dishes, runs);
+  assert.deepEqual(board.slice(0, 4).map((p) => [p.name, p.points, p.rank]), [["Kevin", 5, 1], ["Alex", 4, 2], ["Brandon", 4, 2], ["Anson", 1, 4]]);
+  assert.deepEqual([board[0].dishPoints, board[0].binPoints, board[0].binRuns], [3, 2, 1]);
   assert.equal(board.at(-1).points, 0);
 });

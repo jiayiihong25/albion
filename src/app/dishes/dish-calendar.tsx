@@ -11,7 +11,7 @@ import {
   houseToday, scheduledRoommate, startOfWeek, weekLabel,
 } from "@/lib/dish-calendar";
 import styles from "./dishes.module.css";
-import { DishLeaderboard } from "./leaderboard";
+import { HouseLeaderboard } from "./leaderboard";
 import { Avatar } from "./avatar";
 import { MemberMenu } from "@/components/member-menu";
 import { HouseArt } from "@/components/house-art";
@@ -307,7 +307,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
 
         <section className={styles.rotation} aria-label="Weekly dish rotation"><div><p className={styles.eyebrow}>THE REGULAR ROTATION</p><h2>Same day. Every week.</h2></div><div className={styles.rotationPeople}>{DISH_ROTATION.map((person) => <div key={person.name}><span className={styles.rotationDay}>{person.day.slice(0, 3)}</span><Avatar name={person.name} /><strong>{person.name}</strong></div>)}</div><p>Sunday is a team effort.<br />Anyone can take the last shift.</p></section>
         </div>
-        <div className={styles.sidebar}><DishLeaderboard refreshKey={scoreRevision + reload} /></div>
+        <div className={styles.sidebar}><HouseLeaderboard refreshKey={scoreRevision + reload} /></div>
         </div>
         <AnimatePresence>{shareRequest && <DishShareSheet key={shareRequest.day} request={shareRequest} onClose={() => setShareRequest(null)} />}</AnimatePresence>
         <footer className={styles.footer}><span>Good housemates leave a clean sink.</span><span>House time · Toronto</span></footer>

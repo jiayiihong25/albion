@@ -6,12 +6,13 @@ import type { ChangeEvent, FormEvent } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { BinKind, BinRun, Roommate } from "@/lib/types";
 import { DISH_ROTATION, formatCalendarDate, HOUSE_TIME_ZONE, houseToday } from "@/lib/dish-calendar";
-import { BIN_RUN_COLUMNS, BIN_RUN_PHOTO_BUCKET, BIN_RUN_POINTS, BINS, buildBinRunLeaderboard, saveBinRun } from "@/lib/bin-runs";
+import { BIN_RUN_COLUMNS, BIN_RUN_PHOTO_BUCKET, BIN_RUN_POINTS, BINS, saveBinRun } from "@/lib/bin-runs";
 import { PHOTO_TYPES, validatePhoto } from "@/lib/photo-check-in";
 import { HouseNav } from "@/components/house-nav";
 import { HouseArt } from "@/components/house-art";
 import { Avatar } from "../dishes/avatar";
 import { DishPhoto } from "../dishes/dish-photo";
+import { HouseLeaderboard } from "../dishes/leaderboard";
 import shell from "@/components/house-shell.module.css";
 import styles from "../dishes/dishes.module.css";
 import own from "./garbage.module.css";
@@ -42,6 +43,7 @@ export default function BinRuns({ member }: { member: Roommate }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [openPhoto, setOpenPhoto] = useState<string | null>(null);
+  const [scoreRevision, setScoreRevision] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const photoRequest = useRef(0);
   const submitting = useRef(false);
@@ -53,7 +55,6 @@ export default function BinRuns({ member }: { member: Roommate }) {
   const openBins = KINDS.filter((kind) => !todayRuns.has(kind));
   // Fall back to the first bin still open today.
   const chosen = bin && !todayRuns.has(bin) ? bin : openBins[0] ?? null;
-  const scores = data && ready ? buildBinRunLeaderboard(data.roommates, runs) : null;
   const recent = [...runs].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10);
 
   useEffect(() => {
@@ -149,6 +150,7 @@ export default function BinRuns({ member }: { member: Roommate }) {
         return;
       }
       setData((previous) => previous ? { ...previous, runs: [...previous.runs, result.record] } : previous);
+      setScoreRevision((value) => value + 1);
       setNotice(`${BINS[chosen].label} is out. +${BIN_RUN_POINTS} points for ${member.name}. Thank you!`);
       setBin(null);
       clearPhoto();
@@ -165,7 +167,7 @@ export default function BinRuns({ member }: { member: Roommate }) {
       <div className={shell.shell}>
         <HouseNav member={member} section="garbage" />
         <header className={shell.header}>
-          <div><p className={shell.eyebrow}>TAKE IT OUT</p><h1>Bin runs<span>.</span></h1><p className={shell.subtitle}>Full bin in the kitchen? Take it to the outside cart, snap a photo, earn {BIN_RUN_POINTS} points.</p></div>
+          <div><p className={shell.eyebrow}>TAKE IT OUT</p><h1>Bin runs<span>.</span></h1><p className={shell.subtitle}>Full bin in the kitchen? Take it to the outside cart, snap a photo, earn {BIN_RUN_POINTS} points toward the house score.</p></div>
           <span className={shell.houseTag}><span /> SIX PEOPLE. TWO BINS.</span>
         </header>
 
@@ -237,25 +239,7 @@ export default function BinRuns({ member }: { member: Roommate }) {
           </div>
 
           <div className={`${styles.sidebar} ${own.sidebarLast}`}>
-            <aside className={styles.leaderboard} aria-labelledby="bin-leaderboard-heading">
-              <div className={styles.leaderboardHeading}>
-                <p className={styles.eyebrow}>WHO ACTUALLY TAKES IT OUT</p>
-                <h2 id="bin-leaderboard-heading">The bin brigade<HouseArt name="trophy" size={46} /></h2>
-                <p>All-time bin runs</p>
-              </div>
-              <ol className={styles.leaderboardRows}>
-                {(scores ?? buildBinRunLeaderboard([], [])).map((person) => (
-                  <li key={person.name} className={scores && person.points > 0 && person.rank === 1 ? styles.firstPlace : undefined}>
-                    <span className={styles.rank} aria-label={scores && person.points > 0 ? `Rank ${person.rank}` : undefined}>{scores && person.points > 0 ? person.rank.toString().padStart(2, "0") : "—"}</span>
-                    <Avatar name={person.name} />
-                    <div className={styles.scorePerson}><strong>{person.name}</strong><small>{scores ? `${person.garbage} garbage · ${person.compost} compost` : "Waiting for scores"}</small></div>
-                    <span className={styles.points}><strong>{scores ? person.points : "—"}</strong><small>PTS</small></span>
-                  </li>
-                ))}
-              </ol>
-              <div className={styles.scoringKey}><span><strong>+{BIN_RUN_POINTS}</strong> Garbage run</span><span><strong>+{BIN_RUN_POINTS}</strong> Compost run</span></div>
-              <p className={styles.scoringNote}>A photo of the bag going into the outside bin is required. First person to take each bin out today gets the points. Ties share a rank.</p>
-            </aside>
+            <HouseLeaderboard refreshKey={scoreRevision + reload} />
           </div>
         </div>
         <footer className={shell.footer}><span>Good housemates don’t leave a full bin for the next person.</span><span>House time · Toronto</span></footer>

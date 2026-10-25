@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { BinRun, BinKind, Roommate } from "./types";
-import { DISH_ROTATION } from "./dish-calendar.ts";
+import type { BinRun, BinKind, DishCompletion, Roommate } from "./types";
+import { buildDishLeaderboard } from "./dish-calendar.ts";
 import { savePhotoCheckIn } from "./photo-check-in.ts";
 
 export const BIN_RUN_PHOTO_BUCKET = "bin-run-photos";
@@ -12,13 +12,18 @@ export const BINS: Record<BinKind, { label: string; icon: string; hint: string }
   compost: { label: "Compost", icon: "🍌", hint: "Kitchen compost into the green bin" },
 };
 
-export function buildBinRunLeaderboard(roommates: Pick<Roommate, "id" | "name">[], runs: Pick<BinRun, "bin" | "roommate_id">[]) {
-  const scores = DISH_ROTATION.map((person) => {
+/** The overall house score: dish points (3 on time, 1 late) plus 2 per bin run. */
+export function buildHouseLeaderboard(
+  roommates: Pick<Roommate, "id" | "name">[],
+  completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[],
+  runs: Pick<BinRun, "roommate_id">[],
+) {
+  const scores = buildDishLeaderboard(roommates, completions).map((person) => {
     const roommate = roommates.find((r) => r.name === person.name);
-    const mine = roommate ? runs.filter((run) => run.roommate_id === roommate.id) : [];
-    const garbage = mine.filter((run) => run.bin === "garbage").length;
-    const compost = mine.length - garbage;
-    return { ...person, garbage, compost, points: mine.length * BIN_RUN_POINTS };
+    const binRuns = roommate ? runs.filter((run) => run.roommate_id === roommate.id).length : 0;
+    const dishPoints = person.points;
+    const binPoints = binRuns * BIN_RUN_POINTS;
+    return { ...person, dishPoints, binRuns, binPoints, points: dishPoints + binPoints };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   return scores.map((person) => ({
     ...person,
