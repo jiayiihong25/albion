@@ -7,6 +7,7 @@ import { BIN_RUN_POINTS } from "@/lib/bin-runs";
 import { HouseNav } from "@/components/house-nav";
 import { HouseArt } from "@/components/house-art";
 import { Avatar } from "./dishes/avatar";
+import { HouseLeaderboard } from "./dishes/leaderboard";
 import shell from "@/components/house-shell.module.css";
 import styles from "./home.module.css";
 import snipeStyles from "./snipes/snipes.module.css";
@@ -104,6 +105,8 @@ export default async function Home() {
             </div>
           </Link>
         </div>
+
+        <div className={styles.scores}><HouseLeaderboard refreshKey={0} /></div>
 
         <div className={styles.more}><HouseArt name="shared" size={44} /><span><strong>More house tasks coming soon.</strong>Chores, bills, and whatever else the six of us forget.</span></div>
         <footer className={shell.footer}><span>Good housemates leave a clean sink and an empty leftovers shelf.</span><span>House time · Toronto</span></footer>

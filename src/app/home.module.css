@@ -29,6 +29,13 @@
 
 .avatarRow { display: flex; align-items: center; gap: 10px; }
 .avatarRow > span:first-child { width: 36px; height: 36px; }
+/* The house score spans the page under the cards: three across on desktop. */
+.scores { margin-top: 30px; }
+@media (min-width: 761px) {
+  .scores ol { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 28px; padding: 6px 20px; }
+  .scores li:nth-last-child(-n+3) { border-bottom: 0; }
+}
+
 .more { margin-top: 30px; display: flex; align-items: center; gap: 16px; padding: 22px 26px; border: 1px dashed #d4dbc8; border-radius: 16px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .more strong { color: var(--ink); font-weight: 550; display: block; }
 
