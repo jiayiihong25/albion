@@ -18,22 +18,33 @@ export const DISH_SCORING_STARTS = "2026-10-19";
 
 export type DishStatus = "done" | "due" | "missed" | "upcoming";
 
-export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[], completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[], now = new Date()) {
+export const DISH_POINTS = { onTime: 3, late: 1, splitOnTime: 2, splitLate: 1 } as const;
+
+type ScoredCompletion = Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at"> & { partner_id?: string | null };
+
+export function buildDishLeaderboard(roommates: Pick<Roommate, "id" | "name">[], completions: ScoredCompletion[], now = new Date()) {
   const missed = missedShifts(completions, now);
   const scores = DISH_ROTATION.map((person) => {
     const roommate = roommates.find((r) => r.name === person.name);
     let onTime = 0;
     let late = 0;
+    let splitOnTime = 0;
+    let splitLate = 0;
     if (roommate) {
       for (const completion of completions) {
-        if (completion.roommate_id !== roommate.id) continue;
-        if (houseDishDay(new Date(completion.created_at)) <= completion.performed_on) onTime += 1;
+        if (completion.roommate_id !== roommate.id && completion.partner_id !== roommate.id) continue;
+        const wasOnTime = houseDishDay(new Date(completion.created_at)) <= completion.performed_on;
+        // A split day credits both washers at the split rate.
+        if (completion.partner_id) { if (wasOnTime) splitOnTime += 1; else splitLate += 1; }
+        else if (wasOnTime) onTime += 1;
         else late += 1;
       }
     }
     // A roommate who isn't connected yet can't be docked.
     const missedCount = roommate ? missed.get(person.name) ?? 0 : 0;
-    return { ...person, onTime, late, missed: missedCount, points: onTime * 3 + late - missedCount };
+    const points = onTime * DISH_POINTS.onTime + late * DISH_POINTS.late
+      + splitOnTime * DISH_POINTS.splitOnTime + splitLate * DISH_POINTS.splitLate - missedCount;
+    return { ...person, onTime, late, splitOnTime, splitLate, missed: missedCount, points };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   return scores.map((person) => ({
     ...person,

@@ -17,6 +17,8 @@ export type DishCompletion = {
   roommate_id: string;
   created_at: string;
   photo_path: string | null;
+  /** The housemate who split this day with the washer, if anyone. */
+  partner_id: string | null;
 };
 
 export type BinKind = "garbage" | "compost";

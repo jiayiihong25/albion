@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { BinRun, BinKind, DishCompletion, Roommate } from "./types";
+import type { BinRun, BinKind, Roommate } from "./types";
 import { buildDishLeaderboard } from "./dish-calendar.ts";
 import { savePhotoCheckIn } from "./photo-check-in.ts";
 
@@ -13,13 +13,14 @@ export const BINS: Record<BinKind, { label: string; icon: string; hint: string }
 };
 
 /**
- * The overall house score: dish points (3 on time, 1 late, −1 missed), plus 2 per
+ * The overall house score: dish points (3 on time, 1 late, 2 / 1 each for a split
+ * day, −1 missed), plus 2 per
  * bin run, minus 1 per guilty snipe (`snipes` comes from dish_snipe_deductions(),
  * already capped at 2 a day).
  */
 export function buildHouseLeaderboard(
   roommates: Pick<Roommate, "id" | "name">[],
-  completions: Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">[],
+  completions: Parameters<typeof buildDishLeaderboard>[1],
   runs: Pick<BinRun, "roommate_id">[],
   snipes: { roommate_id: string; counted: number }[] = [],
   now = new Date(),
