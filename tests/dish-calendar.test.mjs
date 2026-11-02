@@ -128,3 +128,25 @@ test("equal scores share a rank and sort alphabetically; covering credits the wa
   ]);
   assert.equal(scores.find((person) => person.name === "Brandon").points, 0);
 });
+
+test("a split day gives both washers 2 on time or 1 late, and leaves solo days at 3 / 1", () => {
+  const people = DISH_ROTATION.map((person) => ({ id: person.name.toLowerCase(), name: person.name }));
+  const entries = [
+    // Alex and Brandon split Monday on time.
+    { performed_on: "2026-10-19", roommate_id: "alex", partner_id: "brandon", created_at: "2026-10-19T23:00:00Z" },
+    // Anson and Jiayi split Tuesday after the 8am cutoff.
+    { performed_on: "2026-10-20", roommate_id: "anson", partner_id: "jiayi", created_at: "2026-10-21T13:00:00Z" },
+    // Solo check-ins, with and without an explicit null partner, score as before.
+    { performed_on: "2026-10-23", roommate_id: "kevin", partner_id: null, created_at: "2026-10-23T23:00:00Z" },
+    { performed_on: "2026-10-24", roommate_id: "vincent", created_at: "2026-10-25T13:00:00Z" },
+  ];
+  const scores = buildDishLeaderboard(people, entries, new Date("2026-10-25T16:00:00Z"));
+  const points = Object.fromEntries(scores.map((person) => [person.name, person.points]));
+  assert.deepEqual(points, { Alex: 2, Brandon: 2, Anson: 1, Jiayi: 1, Kevin: 3, Vincent: 1 });
+  const alex = scores.find((person) => person.name === "Alex");
+  assert.equal(alex.splitOnTime, 1);
+  assert.equal(alex.onTime, 0);
+  // The split resolves Monday for the missed-shift check too.
+  const later = buildDishLeaderboard(people, entries, new Date("2026-10-26T13:00:00Z"));
+  assert.equal(later.find((person) => person.name === "Alex").missed, 0);
+});

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import { DISH_ROTATION } from "@/lib/dish-calendar";
+import { DISH_POINTS, DISH_ROTATION } from "@/lib/dish-calendar";
 import { BIN_RUN_POINTS, buildHouseLeaderboard } from "@/lib/bin-runs";
 import type { BinRun, DishCompletion } from "@/lib/types";
 import type { SnipeDeduction } from "@/lib/dish-snipes";
@@ -49,7 +49,7 @@ export function HouseLeaderboard({ refreshKey }: { refreshKey: number }) {
         if (people.error) throw new Error(people.error.message);
         if (people.data.length !== DISH_ROTATION.length) throw new Error("The house rotation needs to be connected first.");
         const [dishes, bins, snipes] = await Promise.all([
-          loadAll<Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at">>(supabase!, "dish_completions", "performed_on,roommate_id,created_at", "performed_on", controller.signal),
+          loadAll<Pick<DishCompletion, "performed_on" | "roommate_id" | "created_at" | "partner_id">>(supabase!, "dish_completions", "performed_on,roommate_id,created_at,partner_id", "performed_on", controller.signal),
           loadAll<Pick<BinRun, "roommate_id">>(supabase!, "bin_runs", "roommate_id,created_at", "created_at", controller.signal),
           supabase!.rpc("dish_snipe_deductions").abortSignal(controller.signal),
         ]);
@@ -93,8 +93,8 @@ export function HouseLeaderboard({ refreshKey }: { refreshKey: number }) {
           </li>
         ))}
       </ol>
-      <div className={styles.scoringKey}><span><strong>+3</strong> Dishes on time</span><span><strong>+1</strong> Dishes late</span><span><strong>−1</strong> Missed</span><span><strong>+{BIN_RUN_POINTS}</strong> Bin run</span><span><strong>−1</strong> Guilty snipe</span></div>
-      <p className={styles.scoringNote}>Dishes: check in by 8am Toronto time the next morning for full points; covering a shift earns the washer the points; a shift still undone when the week ends costs its owner a point. Bins: take a full garbage or compost out with a photo, first each per day. Snipes: a point off only if it isn’t cleaned up and the house votes guilty. Ties share a rank.</p>
+      <div className={styles.scoringKey}><span><strong>+{DISH_POINTS.onTime}</strong> Dishes on time</span><span><strong>+{DISH_POINTS.late}</strong> Dishes late</span><span><strong>+{DISH_POINTS.splitOnTime}</strong> Each, split on time</span><span><strong>+{DISH_POINTS.splitLate}</strong> Each, split late</span><span><strong>−1</strong> Missed</span><span><strong>+{BIN_RUN_POINTS}</strong> Bin run</span><span><strong>−1</strong> Guilty snipe</span></div>
+      <p className={styles.scoringNote}>Dishes: check in by 8am Toronto time the next morning for full points; covering a shift earns the washer the points; two housemates who split a day each get the split points; a shift still undone when the week ends costs its owner a point. Bins: take a full garbage or compost out with a photo, first each per day. Snipes: a point off only if it isn’t cleaned up and the house votes guilty. Ties share a rank.</p>
       {!supabase ? <p className={styles.scoreError}>Connect the calendar to load scores.</p> : error ? <div className={styles.scoreError} role="status"><p>{scores ? "Showing the last loaded scores. " : ""}{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>Refresh scores</button></div> : null}
     </aside>
   );

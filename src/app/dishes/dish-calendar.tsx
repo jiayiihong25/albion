@@ -7,7 +7,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { DishCompletion, Roommate } from "@/lib/types";
 import {
-  addDays, calendarDate, DISH_ROTATION, dishStatus, formatCalendarDate, HOUSE_TIME_ZONE,
+  addDays, calendarDate, DISH_POINTS, DISH_ROTATION, dishStatus, formatCalendarDate, HOUSE_TIME_ZONE,
   houseDishDay, houseToday, scheduledRoommate, startOfWeek, weekLabel,
 } from "@/lib/dish-calendar";
 import styles from "./dishes.module.css";
@@ -15,7 +15,7 @@ import { HouseLeaderboard } from "./leaderboard";
 import { Avatar } from "./avatar";
 import { MemberMenu } from "@/components/member-menu";
 import { HouseArt } from "@/components/house-art";
-import { DISH_PHOTO_TYPES, saveDishCheckIn, validateDishPhoto } from "@/lib/dish-photos";
+import { DISH_COMPLETION_COLUMNS, DISH_PHOTO_TYPES, saveDishCheckIn, validateDishPhoto } from "@/lib/dish-photos";
 import { DishPhoto } from "./dish-photo";
 import { AnimatePresence } from "motion/react";
 import { DishShareSheet, type ShareRequest } from "./share-sheet";
@@ -60,6 +60,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [shareRequest, setShareRequest] = useState<ShareRequest | null>(null);
+  const [partnerId, setPartnerId] = useState("");
   const [sniping, setSniping] = useState(false);
   const openedInitialDay = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -92,7 +93,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
       try {
         const [people, entries] = await Promise.all([
           supabase!.from("roommates").select("*").in("name", DISH_ROTATION.map((p) => p.name)).order("name").abortSignal(controller.signal),
-          supabase!.from("dish_completions").select("performed_on,roommate_id,created_at,photo_path")
+          supabase!.from("dish_completions").select(DISH_COMPLETION_COLUMNS)
             .gte("performed_on", week).lte("performed_on", addDays(week, 6)).order("performed_on").abortSignal(controller.signal),
         ]);
         if (!active) return;
@@ -146,6 +147,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
     setPhoto(null);
     setCheckingPhoto(false);
     setFormError(null);
+    setPartnerId("");
     if (fileInput.current) fileInput.current.value = "";
   }
 
@@ -215,7 +217,8 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
     setSaveStage("uploading");
     setFormError(null);
     try {
-      const result = await saveDishCheckIn(supabase, { file: photo.file, performedOn: selectedDate, roommateId: selectedRoommate.id }, setSaveStage);
+      const partner = data?.roommates.find((r) => r.id === partnerId) ?? null;
+      const result = await saveDishCheckIn(supabase, { file: photo.file, performedOn: selectedDate, roommateId: selectedRoommate.id, partnerId: partner?.id }, setSaveStage);
       if (!result.ok) {
         setFormError(result.message);
         if (result.duplicate) setReload((value) => value + 1);
@@ -225,10 +228,12 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
       setWeekData((previous) => previous?.week === week
         ? { ...previous, completions: [...previous.completions.filter((entry) => entry.performed_on !== selectedDate), completion] }
         : previous);
-      setNotice(`${selectedRoommate.name} checked in for ${formatCalendarDate(selectedDate, { weekday: "long", month: "short", day: "numeric" })}. Dishes done! Photo saved.`);
+      const washers = partner ? `${selectedRoommate.name} & ${partner.name}` : selectedRoommate.name;
+      setNotice(`${washers} checked in for ${formatCalendarDate(selectedDate, { weekday: "long", month: "short", day: "numeric" })}. Dishes done! Photo saved.`);
       setScoreRevision((value) => value + 1);
-      setShareRequest({ day: selectedDate, washer: selectedRoommate.name, justCheckedIn: true, photo: photo.file, photoPath: completion.photo_path });
+      setShareRequest({ day: selectedDate, washer: washers, justCheckedIn: true, photo: photo.file, photoPath: completion.photo_path });
       setPhoto(null);
+      setPartnerId("");
       if (fileInput.current) fileInput.current.value = "";
     } catch {
       setFormError("The connection was interrupted. Try again; this day will only be counted once.");
@@ -238,7 +243,13 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
     }
   }
 
-  const completedBy = selectedCompletion ? data?.roommates.find((r) => r.id === selectedCompletion.roommate_id)?.name ?? "A housemate" : "";
+  const nameOf = (id: string | null | undefined) => id ? data?.roommates.find((r) => r.id === id)?.name : undefined;
+  const washerNames = (completion: DishCompletion) => {
+    const washer = nameOf(completion.roommate_id) ?? "A housemate";
+    const partner = nameOf(completion.partner_id);
+    return partner ? `${washer} & ${partner}` : washer;
+  };
+  const completedBy = selectedCompletion ? washerNames(selectedCompletion) : "";
 
   return (
     <main className={styles.page}>
@@ -279,11 +290,12 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
               const completion = completions.find((entry) => entry.performed_on === day);
               const status = dishStatus(day, today, Boolean(completion));
               const state = ready ? status : "unavailable";
-              const actualPerson = completion ? data?.roommates.find((r) => r.id === completion.roommate_id)?.name : null;
+              const actualPerson = completion ? nameOf(completion.roommate_id) : null;
+              const splitWith = completion ? nameOf(completion.partner_id) : null;
               return <button key={day} type="button" className={`${styles.day} ${styles[state]} ${day === selectedDate ? styles.selected : ""}`} disabled={saving} aria-pressed={day === selectedDate} aria-label={`${formatCalendarDate(day, { weekday: "long", month: "long", day: "numeric" })}, ${person?.name ?? "Shared duty"}, ${ready ? STATUS_LABELS[status] : data || !isSupabaseConfigured ? "Unavailable" : "Loading"}`} onClick={() => selectDay(day)}>
                 <span className={styles.dayDate}><span>{formatCalendarDate(day, { weekday: "short" })}</span>{day === today && <span className={styles.todayPill}>TODAY</span>}</span>
                 <span className={styles.dayNumber}>{formatCalendarDate(day, { day: "numeric" })}</span>
-                <span className={styles.dayPerson}><Avatar name={person?.name} /><span>{person?.name ?? "Everyone"}<small>{completion && actualPerson && actualPerson !== person?.name ? `${actualPerson} covered` : person ? "On dish duty" : "Shared Sunday"}</small></span></span>
+                <span className={styles.dayPerson}><Avatar name={person?.name} /><span>{person?.name ?? "Everyone"}<small>{completion && actualPerson && splitWith ? `${actualPerson} & ${splitWith} split it` : completion && actualPerson && actualPerson !== person?.name ? `${actualPerson} covered` : person ? "On dish duty" : "Shared Sunday"}</small></span></span>
                 <span className={styles.status}><span className={styles.statusDot} />{ready ? STATUS_LABELS[status] : data || !isSupabaseConfigured ? "Not connected" : "Loading…"}</span>
               </button>;
             })}
@@ -303,6 +315,7 @@ export default function DishCalendar({ member, initialDay }: { member: Roommate;
               : <form onSubmit={submitWash} className={styles.form}>
                 <div className={styles.formHeading}><h3>Make it official</h3><span>PHOTO REQUIRED</span></div>
                 <div className={styles.signedInWasher}><Avatar name={member.name} /><div><strong>Checking in as {member.name}</strong><small>{assigned?.name === member.name ? "Your day, your clean slate." : assigned ? `Covering ${assigned.name}’s shift. You earn the points.` : "Taking the Sunday shift. You earn the points."}</small></div></div>
+                <label className={styles.partnerPicker}><span>Split it with a housemate?</span><select value={partnerId} disabled={saving || !ready} onChange={(event) => setPartnerId(event.target.value)}><option value="">No, I washed solo</option>{data?.roommates.filter((r) => r.id !== member.id).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select><small>{partnerId ? `You each get +${DISH_POINTS.splitOnTime} on time, +${DISH_POINTS.splitLate} late.` : `Solo: +${DISH_POINTS.onTime} on time, +${DISH_POINTS.late} late.`}</small></label>
                 <input ref={fileInput} id="dish-photo" className={styles.fileInput} type="file" accept={Object.keys(DISH_PHOTO_TYPES).join(",")} disabled={saving || !ready} onChange={(event) => void attachPhoto(event)} aria-label="Attach a photo of the clean sink" aria-describedby="photo-hint photo-error" />
                 {photo ? <div className={styles.photoPreview}><Image src={photo.url} alt="Your attached photo of the finished dishes" width={640} height={360} unoptimized /><div><span> Photo ready</span><button type="button" disabled={saving} onClick={() => fileInput.current?.click()}>Replace</button><button type="button" disabled={saving} aria-label="Remove attached photo" onClick={() => { setPhoto(null); if (fileInput.current) fileInput.current.value = ""; }}>Remove</button></div></div>
                   : <label htmlFor="dish-photo" className={`${styles.photoDrop} ${!ready ? styles.photoDisabled : ""}`}><HouseArt name="camera" size={72} /><strong>{checkingPhoto ? "Getting your photo ready…" : "Add a photo of the clean sink"}</strong><span>Take a photo or choose from your library</span><small id="photo-hint">JPG, PNG, WebP, AVIF, GIF · up to 20 MB</small></label>}

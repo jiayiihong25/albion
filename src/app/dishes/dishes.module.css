@@ -296,3 +296,6 @@
 .snipeChip { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; padding: 1px 6px; border: 1px solid #e6c9bd; border-radius: 99px; background: #fbf0ea; color: #8f4a3c; font-size: 9px; font-weight: 600; text-decoration: none; vertical-align: 1px; white-space: nowrap; }
 .snipeChip:hover { background: #f6e3da; }
 .bannerActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.partnerPicker { display: grid; gap: 6px; padding: 12px; border: 1px solid #e0e5d5; border-radius: 8px; margin-bottom: 15px; font-size: 11px; font-weight: 550; }
+.partnerPicker select { font: inherit; font-weight: 400; padding: 8px 10px; border: 1px solid #d8dccd; border-radius: 6px; background: #fff; color: inherit; }
+.partnerPicker small { font-size: 9px; font-weight: 400; color: #87917b; }
