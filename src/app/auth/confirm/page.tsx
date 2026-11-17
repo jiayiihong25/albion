@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { AuthCard } from "../../login/auth-card";
 import { confirmRecovery } from "./actions";
+import { ConfirmButton } from "./confirm-button";
 import styles from "../../login/login.module.css";
 
 // Keep the one-time token out of the Referer header.
@@ -32,7 +33,7 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
       <p className={styles.cardIntro}>Press the button to continue. You&apos;ll choose a new password next.</p>
       <form action={confirmRecovery} className={styles.form}>
         {tokenHash ? <input type="hidden" name="token_hash" value={tokenHash} /> : <input type="hidden" name="code" value={code} />}
-        <button className={styles.submit} type="submit">Choose a new password</button>
+        <ConfirmButton />
       </form>
     </AuthCard>
   );
