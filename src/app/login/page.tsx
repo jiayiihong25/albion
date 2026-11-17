@@ -10,7 +10,7 @@ import { HouseArt } from "@/components/house-art";
 
 export const metadata: Metadata = { title: "Welcome home · Albion" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reset?: string }> }) {
   const params = await searchParams;
   const next = safeReturnPath(params.next);
   const access = await getHouseAccess();
@@ -35,7 +35,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <section className={styles.card} aria-labelledby="login-heading">
             <div className={styles.doorArt}><HouseArt name="house" size={88} /></div>
             <p className={styles.eyebrow}>YOUR HOUSE, YOUR PEOPLE</p>
-            <AuthPanel next={next} initialError={error} configured={configured} />
+            <AuthPanel next={next} initialError={error} configured={configured}
+              initialNotice={params.reset === "done" ? "Password changed. Sign in with your new one." : ""} />
           </section>
         </div>
         <footer className={styles.footer}><span>A little more together.</span><span>Made for the Albion house.</span></footer>

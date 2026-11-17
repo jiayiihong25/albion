@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { handleLogin, handleSignUp } from "./actions";
 import styles from "./login.module.css";
@@ -20,7 +21,7 @@ const COPY: Record<Mode, { heading: string; intro: string; switchText: string; s
 };
 
 /** The login card's heading and form, switching between signing in and creating an account. */
-export function AuthPanel({ next, initialError, configured }: { next: string; initialError: string; configured: boolean }) {
+export function AuthPanel({ next, initialError, initialNotice = "", configured }: { next: string; initialError: string; initialNotice?: string; configured: boolean }) {
   const [mode, setMode] = useState<Mode>("sign-in");
   const copy = COPY[mode];
   return (
@@ -28,7 +29,7 @@ export function AuthPanel({ next, initialError, configured }: { next: string; in
       <h2 id="login-heading">{copy.heading}</h2>
       <p className={styles.cardIntro}>{copy.intro}</p>
       {mode === "sign-in"
-        ? <LoginForm next={next} initialError={initialError} configured={configured} />
+        ? <LoginForm next={next} initialError={initialError} initialNotice={initialNotice} configured={configured} />
         : <SignUpForm next={next} configured={configured} />}
       <p className={styles.switchMode}>
         {copy.switchText}{" "}
@@ -48,17 +49,20 @@ function PasswordField({ id, autoComplete, disabled, describedBy }: { id: string
   );
 }
 
-function LoginForm({ next, initialError, configured }: { next: string; initialError: string; configured: boolean }) {
+function LoginForm({ next, initialError, initialNotice, configured }: { next: string; initialError: string; initialNotice: string; configured: boolean }) {
   const [state, action, pending] = useActionState(handleLogin, { email: "", error: "" });
+  // The notice (e.g. "password changed") only shows until the first sign-in attempt.
+  const notice = state.email || state.error ? "" : initialNotice;
+  const error = state.error || initialError;
   return (
     <form action={action} className={styles.form}>
       <input type="hidden" name="next" value={next} />
       <label htmlFor="email">Your email</label>
       <input id="email" name="email" type="email" defaultValue={state.email} autoComplete="username" placeholder="you@example.com" required disabled={pending || !configured} />
       <PasswordField id="password" autoComplete="current-password" disabled={pending || !configured} describedBy="login-error" />
-      <p id="login-error" className={styles.error} role={state.error || initialError ? "alert" : undefined}>{state.error || initialError}</p>
+      <p id="login-error" className={error ? styles.error : styles.message} role={error || notice ? "alert" : undefined}>{error || notice}</p>
       <button className={styles.submit} type="submit" disabled={pending || !configured}>{pending ? "Signing in…" : "Come on in"}</button>
-      <p className={styles.formNote}>Forgot your password? Ask Kevin to help reset your house account.</p>
+      <p className={styles.formNote}>Forgot your password? <Link href="/forgot-password">Reset it by email</Link></p>
     </form>
   );
 }

@@ -3,7 +3,7 @@
 The app uses email/password login, server-managed Supabase session cookies, and
 database policies that restrict house data to the six linked roommate accounts.
 No admin or service-role key is needed in the app. Normal sign-in requires no
-SMTP or email delivery.
+SMTP or email delivery; only password reset emails do (see below).
 
 ## Enable Kevin first
 
@@ -53,6 +53,40 @@ To undo a wrong claim, clear that housemate's link in the SQL editor:
 
 Linking accounts by hand with `house-members.example.sql` still works too.
 
+## Password reset by email
+
+"Forgot your password?" on the login page goes to `/forgot-password`. The member
+enters their email and Supabase emails a one-time link (valid for an hour). The
+link opens `/auth/confirm`, which signs them in with a short recovery session and
+sends them to `/reset-password` to choose a new password. Saving it updates the
+password in Supabase Auth, signs the account out on every device, and returns
+them to `/login` to sign in with the new password. The form gives the same reply
+whether or not an email has an account, so it can't be used to find members.
+
+Setup, once:
+
+1. **Set up custom SMTP** in **Authentication → Emails → SMTP Settings**
+   (Resend, SendGrid, Postmark, or a Gmail app password all work). Supabase's
+   built-in sender only delivers to the project's team members, so without this
+   the other housemates never get their reset email.
+2. In **Authentication → URL Configuration**, set **Site URL** to the deployed
+   app (for example `https://albion.example.com`) and add
+   `https://albion.example.com/auth/confirm` and
+   `http://localhost:3000/auth/confirm` under **Redirect URLs**. Supabase refuses
+   to send people anywhere not on this list.
+3. Recommended: in **Authentication → Emails → Templates → Reset Password**,
+   change the link to
+
+   ```html
+   <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">Choose a new password</a>
+   ```
+
+   With the default template the link only works in the same browser that asked
+   for it (asking on a laptop and opening the email on a phone fails). The
+   `token_hash` link works on any device. `/auth/confirm` accepts both.
+4. Optional: set `NEXT_PUBLIC_SITE_URL` in the app's environment to the public
+   URL. Without it, the link is built from the address the request came from.
+
 ## Behavior and verification
 
 - Unauthenticated requests to `/`, `/dishes`, and `/fridge` redirect to `/login`.
@@ -66,7 +100,11 @@ Linking accounts by hand with `house-members.example.sql` still works too.
 - Every member can view the calendar/leaderboard and mark shared fridge food
   consumed. Member links and completed dish records are not editable by clients.
 - Passwords and session tokens are never returned in login action state or logged.
+- A reset link works once. An expired or reused link lands back on
+  `/forgot-password` with a note to request a new one; opening `/reset-password`
+  without a recovery session offers a fresh link instead of a form.
 
 Sources: [Supabase password auth](https://supabase.com/docs/guides/auth/passwords),
+[Password reset with SSR](https://supabase.com/docs/guides/auth/passwords?flow=pkce#resetting-a-password),
 [SSR clients](https://supabase.com/docs/guides/auth/server-side/creating-a-client),
 [SMTP restrictions](https://supabase.com/docs/guides/auth/auth-smtp).

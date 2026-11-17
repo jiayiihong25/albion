@@ -38,6 +38,8 @@
 .switchMode { text-align: center; font-size: 11px; color: #7e8774; margin-top: 22px; padding-top: 18px; border-top: 1px solid #ebeee3; }
 .switchMode button { color: #304d36; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .switchMode button:focus-visible { outline: 2px solid #657d4e; outline-offset: 3px; border-radius: 3px; }
+.switchMode a, .formNote a { color: #304d36; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.switchMode a:focus-visible, .formNote a:focus-visible { outline: 2px solid #657d4e; outline-offset: 3px; border-radius: 3px; }
 .joinContent { min-height: calc(100vh - 180px); display: grid; place-items: center; padding: 48px 0; }
 .joinContent > .card { width: min(100%, 520px); }
 .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; border: 0; margin: 0 0 22px; padding: 0; min-width: 0; }
