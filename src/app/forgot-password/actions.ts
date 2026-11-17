@@ -30,5 +30,5 @@ export async function requestPasswordReset(_previous: ForgotPasswordState, formD
   } catch {
     return { ...base, error: "We couldn’t reach the sign-in service. Check your connection and try again." };
   }
-  return { ...base, notice: "If that email has a house account, a reset link is on its way. It works once and expires in an hour." };
+  return { ...base, notice: "If that email has a house account, a reset link is on its way. Use the newest email: sending another link cancels the earlier ones. Links expire in an hour." };
 }
