@@ -57,8 +57,12 @@ Linking accounts by hand with `house-members.example.sql` still works too.
 
 "Forgot your password?" on the login page goes to `/forgot-password`. The member
 enters their email and Supabase emails a one-time link (valid for an hour). The
-link opens `/auth/confirm`, which signs them in with a short recovery session and
-sends them to `/reset-password` to choose a new password. Saving it updates the
+link opens `/auth/confirm`, where they press a button that signs them in with a
+short recovery session and sends them to `/reset-password` to choose a new
+password. The button matters: email security scanners (Microsoft Safe Links,
+antivirus) open every link in an email first, and a link that verified on page
+load would be used up before the person clicked it. Requesting a second link
+also cancels the first, so only the newest email works. Saving it updates the
 password in Supabase Auth, signs the account out on every device, and returns
 them to `/login` to sign in with the new password. The form gives the same reply
 whether or not an email has an account, so it can't be used to find members.
